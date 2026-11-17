@@ -1,0 +1,113 @@
+/* Erweiterung Einstufungstest (v1.2): je Fertigkeit und Niveau 6 weitere Aufgaben. Nur anhängen. */
+(function () {
+  const T = window.LINGUA_PACKS.fr.placement;
+  const M = (l, q, a, o, extra) => Object.assign({ l, q, a, o: [a].concat(o) }, extra || {});
+
+  T.vocab.push(
+    M('A2','« le marché »','der Markt',['die Marke','das Mahl','der Mark']),
+    M('A2','« la clé »','der Schlüssel',['das Schloss','der Klee','das Kleid']),
+    M('A2','« oublier »','vergessen',['vergeben','verlieren','erinnern']),
+    M('A2','« la chambre »','das Zimmer',['die Küche','die Kammermusik','das Dach']),
+    M('A2','« attendre »','warten',['hören','anfangen','ankommen']),
+    M('A2','« le vent »','der Wind',['die Wand','der Wein','die Welt']),
+    M('B1','« le bail »','der Mietvertrag',['der Ball','die Kaution','der Balkon']),
+    M('B1','« rater (le train) »','verpassen',['raten','retten','rasten']),
+    M('B1','« la facture »','die Rechnung',['die Fabrik','der Faktor','die Fassade']),
+    M('B1','« se tromper »','sich irren',['sich trennen','sich treffen','sich trauen']),
+    M('B1','« le chauffage »','die Heizung',['der Fahrer','der Schuh','der Kühlschrank']),
+    M('B1','« épeler »','buchstabieren',['schälen','sparen','spielen']),
+    M('B2','« le surmenage »','die Überlastung',['die Übernachtung','die Übertreibung','die Überraschung']),
+    M('B2','« susciter »','hervorrufen',['unterdrücken','vermuten','ersetzen']),
+    M('B2','« la sécheresse »','die Dürre',['die Sicherheit','der Trockner','die Schärfe']),
+    M('B2','« néanmoins »','dennoch',['deshalb','niemals','ausserdem']),
+    M('B2','« le gaspillage »','die Verschwendung',['die Gaststätte','das Gespräch','die Garantie']),
+    M('B2','« soulagé »','erleichtert',['gesättigt','beleidigt','gelangweilt']),
+    M('C1','« endiguer »','eindämmen',['ausrufen','einbeziehen','vertrauen']),
+    M('C1','« peaufiner »','den letzten Schliff geben',['aufgeben','ausdehnen','verschieben']),
+    M('C1','« la recrudescence »','die erneute Zunahme',['der Rückgang','der Stillstand','die Abschaffung']),
+    M('C1','« saugrenu »','abwegig',['saftig','sauer','vernünftig']),
+    M('C1','« tergiverser »','zögern',['übersetzen','umkehren','beschleunigen']),
+    M('C1','« obtenir l’aval de »','die Zustimmung erhalten von',['die Ablehnung erhalten von','eine Verzögerung bekommen von','eine Lawine auslösen bei'])
+  );
+
+  T.grammar.push(
+    M('A2','Demain, je ___ au cinéma avec Léa.','vais',['suis allé','allais','irais']),
+    M('A2','Elle ___ 30 ans aujourd’hui.','a',['est','fait','as']),
+    M('A2','Nous ___ partis tôt ce matin.','sommes',['avons','êtes','sont']),
+    M('A2','Tu veux ___ thé ?','du',['de la','des','de']),
+    M('A2','Je ___ suis pas d’accord.','ne',['n’','pas','non']),
+    M('A2','Ce sont les enfants de Marie : ce sont ___ enfants.','ses',['son','leurs','sa']),
+    M('B1','Je le connais ___ dix ans.','depuis',['il y a','pendant','dans']),
+    M('B1','Quand nous sommes arrivés, ils ___ déjà partis.','étaient',['sont','avaient','seront']),
+    M('B1','Mes clés ? Je les ai ___ sur la table.','vues',['vu','vus','vue']),
+    M('B1','S’il fait beau demain, nous ___ au lac.','irons',['irions','allions','serions allés']),
+    M('B1','Je cherche la personne ___ a perdu ce sac.','qui',['que','dont','où']),
+    M('B1','Il m’a demandé ___ j’avais fait le week-end.','ce que',['qu’est-ce que','que','quoi']),
+    M('B2','Je doute qu’elle ___ venir.','puisse',['peut','pourra','pourrait']),
+    M('B2','Si j’avais su, je ___ plus tôt.','serais parti',['partirais','suis parti','étais parti']),
+    M('B2','Il a réussi ___ ses difficultés.','malgré',['bien que','quoique','pourtant']),
+    M('B2','C’est la raison pour ___ je suis parti.','laquelle',['lequel','quoi','qui']),
+    M('B2','Elle s’est ___ compte de son erreur.','rendu',['rendue','rendus','rendues']),
+    M('B2','Dès que tu ___ terminé, appelle-moi.','auras',['as','aurais','avais']),
+    M('C1','Quelles que ___ les difficultés, nous continuerons.','soient',['sont','seront','soit']),
+    M('C1','Il a beau ___, il n’y arrive pas.','essayer',['essaie','essayé','essayant']),
+    M('C1','À peine ___ sorti qu’il s’est mis à pleuvoir.','était-il',['il était','est-il','il fut']),
+    M('C1','Pour peu qu’il ___ beau, nous sortirons.','fasse',['fait','fera','ferait']),
+    M('C1','Quoi que vous ___, je resterai calme.','disiez',['dites','direz','disez']),
+    M('C1','Les fleurs que j’ai ___ pousser sont magnifiques.','vues',['vu','vus','vue'])
+  );
+
+  T.reading.push(
+    M('A2','Que va faire Julie ?','Venir et apporter un dessert',['Annuler sa visite','Inviter Marc chez elle','Acheter un cadeau'],{ p:'Cher Marc, merci pour ton invitation ! Je viens avec plaisir samedi. J’apporte un dessert. À samedi, Julie' }),
+    M('A2','Quand peut-on de nouveau nager ?','À partir du 16 juillet',['Le 1er juillet','Le 15 juillet','Seulement en août'],{ p:'Piscine municipale : fermée pour travaux du 1er au 15 juillet. Réouverture le 16 juillet à 9 h.' }),
+    M('A2','Qu’est-ce qui est vrai ?','Les charges sont comprises dans le loyer',['L’appartement est loin de la gare','Il n’y a pas de balcon','Il est libre en janvier'],{ p:'Appartement à louer : 3 pièces, cuisine équipée, balcon, près de la gare. Loyer : 1450 CHF charges comprises. Libre dès le 1er mars.' }),
+    M('A2','Que doit faire Tom ?','Acheter du lait et des œufs',['Préparer le repas','Aller chercher sa mère','Appeler sa sœur'],{ p:'Tom, je rentre tard ce soir. Peux-tu acheter du lait et six œufs ? Merci ! Maman' }),
+    M('A2','À quelle heure commence le cours ?','À 18 h 30',['À 18 h','À 19 h 30','À 20 h'],{ p:'Cours de salsa pour débutants : chaque jeudi de 18 h 30 à 20 h, salle 2. Inscription sur place.' }),
+    M('A2','Pourquoi Anna écrit-elle ?','Pour remercier pour un cadeau',['Pour inviter à un anniversaire','Pour s’excuser d’un retard','Pour demander un service'],{ p:'Merci beaucoup pour le livre, il est super ! Je l’ai déjà presque fini. Bises, Anna' }),
+    M('B1','Quel est le résultat de la mesure ?','Plus de passagers, mais presque autant de voitures',['Moins de voitures et moins de passagers','Les bouchons ont disparu','Les bus sont devenus payants'],{ p:'Pour réduire les bouchons, la ville a rendu les bus gratuits le samedi. Après six mois, le nombre de passagers a augmenté de 20 %, mais le trafic automobile n’a presque pas diminué.' }),
+    M('B1','Que demande l’auteur du message ?','S’il faut apporter un tablier',['La date du cours','Le prix du cours','S’il peut annuler'],{ p:'Chère Madame, suite à notre entretien téléphonique, je vous confirme ma participation au cours de cuisine du 12 mai. Pourriez-vous m’indiquer s’il faut apporter un tablier ?' }),
+    M('B1','Pourquoi certains concerts seront-ils gratuits ?','Pour attirer un public plus jeune',['Parce qu’il y a moins d’artistes','À cause de la météo','Pour remercier les sponsors'],{ p:'Le festival accueillera cette année plus de 50 artistes. Pour la première fois, une partie des concerts sera gratuite, afin d’attirer un public plus jeune.' }),
+    M('B1','Qu’est-ce que Lucas a décidé ?','Garder son vélo et le faire réparer',['Acheter une voiture','Vendre son vélo','Prendre le bus tous les jours'],{ p:'Mon vieux vélo est tombé en panne. J’ai hésité à en acheter un neuf, mais le réparateur m’a fait un bon prix : finalement, je le garde.' }),
+    M('B1','Que conseille l’article ?','De réserver tôt pour payer moins cher',['De voyager seulement en hiver','D’éviter le train','De partir sans réservation'],{ p:'Vous partez en vacances cet été ? Réservez vos billets de train dès maintenant : plus vous attendez, plus les prix augmentent.' }),
+    M('B1','Quel problème rencontre la locataire ?','Le chauffage ne fonctionne pas',['Le loyer a augmenté','Les voisins font du bruit','Elle doit déménager'],{ p:'Madame, je vous écris car le chauffage de mon appartement ne fonctionne plus depuis lundi. Pourriez-vous envoyer quelqu’un rapidement ?' }),
+    M('B2','Comment la randonnée est-elle perçue aujourd’hui ?','Comme une activité bénéfique pour la santé',['Comme un loisir sans intérêt','Comme un sport dangereux','Comme une activité réservée aux sportifs'],{ p:'Longtemps considérée comme un simple loisir, la randonnée est aujourd’hui recommandée par de nombreux médecins, qui y voient un moyen efficace de lutter contre le stress et la sédentarité.' }),
+    M('B2','Qu’est-ce qui inquiète les habitants ?','Le coût du projet',['L’emplacement de la patinoire','Le bruit','La date d’ouverture'],{ p:'Si la plupart des habitants approuvent le projet de nouvelle patinoire, beaucoup s’interrogent sur son coût, qui pourrait entraîner une hausse des impôts communaux.' }),
+    M('B2','Qu’est-ce qui a surpris les auditeurs ?','Elle a annoncé son départ en direct, sans prévenir',['Elle a été licenciée','L’émission a changé d’horaire','Elle revient après quinze ans'],{ p:'Les auditeurs fidèles de l’émission ont été surpris : l’animatrice, à l’antenne depuis quinze ans, a annoncé son départ en direct, sans en avoir averti la direction au préalable.' }),
+    M('B2','Que reproche-t-on à l’application ?','De collecter trop de données personnelles',['D’être trop chère','D’être difficile à utiliser','De ne pas exister en français'],{ p:'Pratique et gratuite, l’application séduit de nombreux utilisateurs. Des associations de consommateurs dénoncent toutefois la quantité de données personnelles qu’elle récolte.' }),
+    M('B2','Selon le texte, le bénévolat…','apporte aussi quelque chose aux bénévoles',['n’apporte rien aux bénévoles','est obligatoire','est en forte baisse'],{ p:'Contrairement à ce que l’on pourrait penser, le bénévolat ne profite pas qu’aux bénéficiaires : les bénévoles y gagnent souvent confiance en eux et nouvelles compétences.' }),
+    M('B2','Pourquoi le projet a-t-il été reporté ?','Il faut d’abord obtenir des autorisations',['Le budget a été refusé','Les habitants ont voté contre','L’architecte a démissionné'],{ p:'Le chantier de la nouvelle école ne débutera pas avant l’an prochain : la commune attend encore plusieurs autorisations cantonales.' }),
+    M('C1','Que suggère le texte ?','Derrière une apparence sympathique, le maire est très ferme',['Le maire est faible et indécis','Ses adversaires l’admirent','Le maire est surtout drôle'],{ p:'Sous des dehors bonhommes, le maire n’en mène pas moins une politique d’une rare fermeté, que ses adversaires qualifient volontiers d’autoritaire.' }),
+    M('C1','Selon l’auteur, l’expérience…','a été utile malgré l’échec apparent',['a été totalement inutile','a confirmé toutes les hypothèses','doit être interdite'],{ p:'Que l’expérience n’ait pas donné les résultats escomptés ne signifie pas pour autant qu’elle ait été vaine : elle a permis d’écarter plusieurs hypothèses.' }),
+    M('C1','Quelle est l’idée principale ?','La technologie ne suffira pas sans changement de comportements',['La technologie résoudra tout','Les comportements ne comptent pas','La crise climatique est une illusion'],{ p:'Il serait illusoire de croire que la technologie, à elle seule, suffira à résoudre la crise climatique ; encore faut-il que les comportements évoluent.' }),
+    M('C1','Quelle est la position de l’auteure ?','Elle reconnaît des avantages mais reste réservée',['Elle est enthousiaste sans réserve','Elle rejette totalement la réforme','Elle n’a pas d’avis'],{ p:'Sans nier les quelques avancées que permet la réforme, l’auteure peine à y voir le tournant décisif que d’aucuns se plaisent à célébrer.' }),
+    M('C1','Que comprend-on ?','Le succès est arrivé tard, après beaucoup d’échecs',['Le succès a été immédiat','Il a abandonné son projet','Il n’a jamais réussi'],{ p:'Ce n’est qu’au terme d’une longue série de revers que son entreprise a fini par trouver son public.' }),
+    M('C1','Que signifie la dernière phrase ?','Le problème est déplacé, pas résolu',['Le problème est définitivement réglé','Le problème n’a jamais existé','Le problème a été aggravé volontairement'],{ p:'Fermer le parking du centre a certes réduit le trafic en ville. Mais les voitures se garent désormais dans les quartiers voisins : on a moins résolu le problème qu’on ne l’a déplacé.' })
+  );
+
+  T.listening.push(
+    M('A2','De quelle voie part le train ?','Voie 4',['Voie 2','Voie 10','Voie 12'],{ t:'Le prochain train pour Fribourg part à dix heures douze, voie quatre.' }),
+    M('A2','Combien de croissants veut la personne ?','Quatre',['Deux','Six','Un'],{ t:'Bonjour, je voudrais deux baguettes et quatre croissants, s’il vous plaît.' }),
+    M('A2','Que dit Paul ?','Il arrive dans vingt minutes',['Il ne vient pas','Il est déjà là','Il arrive dans deux heures'],{ t:'Salut, c’est Paul. Je suis en retard, j’arrive dans vingt minutes.' }),
+    M('A2','Où va la personne ?','À la poste',['À la gare','À la banque','Au supermarché'],{ t:'Excusez-moi, je cherche la poste. C’est loin d’ici ?' }),
+    M('A2','Combien coûte le billet ?','12 francs',['20 francs','2 francs','22 francs'],{ t:'Un billet pour Berne, s’il vous plaît. — Ça fait douze francs.' }),
+    M('A2','Quand est la fête ?','Samedi soir',['Vendredi soir','Dimanche midi','Samedi matin'],{ t:'Tu viens à ma fête d’anniversaire samedi soir ? On commence à sept heures.' }),
+    M('B1','Que propose-t-on aux voyageurs ?','Des bus de remplacement',['Un remboursement','Un autre train direct','D’attendre une heure'],{ t:'Mesdames et messieurs, en raison d’un accident, la ligne est interrompue entre Romont et Fribourg. Des bus de remplacement sont à votre disposition.' }),
+    M('B1','Quel est l’inconvénient de l’appartement ?','Il est un peu cher',['Il est sombre','Il est loin du travail','Il est petit'],{ t:'J’ai trouvé l’appartement idéal : il est un peu plus cher que prévu, mais il est lumineux et tout près de mon travail.' }),
+    M('B1','Quel temps fera-t-il dimanche en fin de journée ?','Il y aura des orages',['Il fera beau','Il neigera','Il y aura du brouillard'],{ t:'Ce week-end, on annonce du soleil samedi, mais dimanche, attention aux orages en fin de journée.' }),
+    M('B1','Pourquoi la personne appelle-t-elle ?','Pour déplacer un rendez-vous',['Pour annuler une commande','Pour réserver une table','Pour se plaindre'],{ t:'Bonjour, j’ai rendez-vous jeudi à dix heures, mais j’ai un empêchement. Serait-il possible de venir plutôt vendredi ?' }),
+    M('B1','Que conseille le pharmacien ?','De se reposer et de boire beaucoup',['D’aller tout de suite à l’hôpital','De faire du sport','De ne rien manger'],{ t:'Pour un rhume comme le vôtre, reposez-vous, buvez beaucoup, et si la fièvre dure plus de trois jours, consultez un médecin.' }),
+    M('B1','Qu’est-ce que la personne a préféré ?','Le paysage',['L’hôtel','La nourriture','Le temps'],{ t:'L’hôtel était correct et on a bien mangé, mais ce qui m’a vraiment marqué, c’est le paysage.' }),
+    M('B2','Qu’est-ce qui fait hésiter la personne ?','La durée du trajet',['Le salaire','Le travail lui-même','La langue'],{ t:'On m’a proposé un poste à Genève. Le salaire est intéressant, mais je ne suis pas sûre de vouloir faire deux heures de trajet par jour.' }),
+    M('B2','Quel est son avis aujourd’hui ?','Il est positif',['Il est toujours sceptique','Il est négatif','Il n’a pas d’avis'],{ t:'Au début, j’étais sceptique, mais finalement, travailler quatre jours par semaine m’a rendu plus efficace.' }),
+    M('B2','Pourquoi le marché sera-t-il plus court ?','Il manque des bénévoles',['Il manque de l’argent','À cause de la météo','Les commerçants refusent'],{ t:'Les organisateurs ont dû revoir leurs ambitions à la baisse : faute de bénévoles, le marché de Noël ne durera qu’un week-end.' }),
+    M('B2','Que pense la personne du film ?','La fin l’a déçue',['Tout était parfait','Le début était ennuyeux','Les acteurs étaient mauvais'],{ t:'J’ai adoré les deux premières heures, mais franchement, la fin gâche un peu tout.' }),
+    M('B2','Quelle est la décision du conseil communal ?','Le projet est reporté',['Le projet est accepté','Le projet est abandonné','Le projet est déjà terminé'],{ t:'Faute d’accord sur le financement, le conseil communal a décidé de repousser le projet à l’année prochaine.' }),
+    M('B2','Que reproche l’auditrice à l’émission ?','Le ton est trop léger pour un sujet sérieux',['Elle est trop longue','Elle passe trop tard','Les invités parlent trop vite'],{ t:'J’écoute votre émission tous les matins, mais hier, je trouve que vous avez traité un sujet grave avec un peu trop de légèreté.' }),
+    M('C1','Que pense la personne de la réunion ?','Elle était trop longue pour ce qu’elle a apporté',['Elle était indispensable','Elle a été annulée','Elle était trop courte'],{ t:'Je ne dirais pas que la réunion a été inutile, mais on aurait pu régler ça en dix minutes par courriel.' }),
+    M('C1','Que s’est-il passé ?','Ils ont failli rater l’avion',['Ils ont raté l’avion','Ils sont arrivés très en avance','L’avion a été annulé'],{ t:'Il s’en est fallu de peu qu’on rate l’avion : la porte d’embarquement fermait au moment où on arrivait.' }),
+    M('C1','Comment la proposition a-t-elle été reçue ?','Sans enthousiasme',['Avec enthousiasme','Très chaleureusement','Elle a été adoptée sans discussion'],{ t:'Autant dire que la proposition a été accueillie plutôt fraîchement par l’assemblée.' }),
+    M('C1','Que veut dire la personne ?','Elle n’est pas convaincue malgré les arguments',['Elle est totalement convaincue','Elle n’a pas écouté','Elle va changer d’avis'],{ t:'Vos arguments sont recevables, je vous l’accorde, mais ils ne suffisent pas à emporter ma conviction.' }),
+    M('C1','Qu’apprend-on sur le projet ?','Il avance, mais plus lentement que prévu',['Il est terminé','Il est abandonné','Il est en avance'],{ t:'Le projet suit son cours, quoique à un rythme nettement moins soutenu que ce que l’on nous avait laissé espérer.' }),
+    M('C1','Quel est le ton de la remarque ?','Ironique',['Admiratif','Neutre','Triste'],{ t:'Bravo, vraiment : trois heures de retard et pas un mot d’excuse. On ne pouvait pas rêver mieux.' })
+  );
+})();
