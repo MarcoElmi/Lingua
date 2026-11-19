@@ -69,7 +69,7 @@
     G('B1','adverbes','Elle a répondu ___ à la question.','correctement',['correctement','correcte','correct'],'On modifie un verbe → adverbe.','Ein Verb wird durch ein Adverb bestimmt.'),
     G('B1','négation','Je n’ai vu ___ à la fête.','personne',['personne','rien','aucun'],'Ne … personne = niemand.','Ne … personne = niemand.'),
     G('B1','négation','Il n’y a ___ problème.','aucun',['aucun','aucune','pas'],'Aucun s’accorde avec le nom : problème est masculin.','Aucun richtet sich nach dem Nomen (männlich).'),
-    G('B1','négation','Je n’ai ___ faim ___ soif.','ni … ni',['ni … ni','ou … ou','et … et'],'Ne … ni … ni = weder … noch.','Ne … ni … ni = weder … noch.'),
+    G('B1','négation','Je n’ai ___ faim ni soif.','ni',['ni','ou','et'],'Ne … ni … ni = ni l’un ni l’autre (je n’ai ni faim ni soif).','Ne … ni … ni = weder … noch.'),
     G('B1','prépositions','Je pars en vacances ___ deux semaines.','dans',['dans','il y a','depuis'],'Dans + durée = moment futur (in zwei Wochen).','Dans + Dauer = in (Zukunft).'),
     G('B1','prépositions','J’ai lu ce livre ___ trois jours.','en',['en','dans','pendant que'],'En + durée = temps nécessaire pour faire quelque chose.','En + Dauer = innerhalb von.'),
     G('B1','prépositions','Nous avons attendu ___ une heure.','pendant',['pendant','depuis','dans'],'Pendant = durée terminée.','Pendant = abgeschlossene Dauer.'),

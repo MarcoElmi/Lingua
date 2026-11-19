@@ -7,7 +7,7 @@
   const LEVELS = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
   const SKILLS = ['vocab', 'grammar', 'reading', 'listening'];
   const STORE_KEY = 'lingua.state.v1';
-  const APP_VERSION = '1.3.0';
+  const APP_VERSION = '1.4.0';
   const MINUTES = { 5: { cards: 6, gaps: 4, quiz: 4, goal: 40, newMax: 5 }, 10: { cards: 10, gaps: 6, quiz: 6, goal: 70, newMax: 8 }, 15: { cards: 15, gaps: 8, quiz: 8, goal: 100, newMax: 12 } };
 
   const $ = (s, el = document) => el.querySelector(s);
@@ -396,7 +396,6 @@
     if (p.mission.date !== d) p.mission = { date: d, done: [false, false, false], rewarded: false };
     return p.mission;
   }
-  const MISSION_STEPS = [['vocab', '🗂️', 'Vocabulaire'], ['gaps', '✏️', 'Texte à trous'], ['quiz', '❓', 'Quiz']];
   function nextMissionStep() { const m = mission(); return m.done.findIndex((x) => !x); }
   function completeMissionStep(i) {
     const m = mission(); m.done[i] = true;
@@ -410,9 +409,12 @@
   }
   function runMission(i) {
     i = Number(i); const cfg = MINUTES[state.settings.minutes];
-    if (i === 0) startVocab(0);
-    else if (i === 1) startMC(U('gaps'), gapItems(cfg.gaps), { missionStep: 1 });
-    else startMC(U('quiz'), quizItems(cfg.quiz), { missionStep: 2 });
+    const type = missionSteps()[i][0];
+    if (type === 'vocab') startVocab(i);
+    else if (type === 'gaps') startMC(U('gaps'), gapItems(cfg.gaps), { missionStep: i });
+    else if (type === 'quiz') startMC(U('quiz'), quizItems(cfg.quiz), { missionStep: i });
+    else if (type === 'text') startText(null, i);
+    else if (type === 'dialog') startGuided(null, { missionStep: i });
   }
 
   /* ---------- Einstufungstest (adaptiv, je Fertigkeit) ---------- */
@@ -522,8 +524,7 @@
 
   /* ---------- Ansichten ---------- */
   const ROADMAP = [
-    ['📞', 'Appel téléphonique'], ['📻', 'Radio'], ['🗣️', 'Prononciation'], ['🎧', 'Dictée'],
-    ['📐', 'Grammaire'], ['🔤', 'Conjugaison'], ['🎭', 'Faux amis'], ['🇨🇭', 'Suisse romande'], ['🏙️', 'Situations'], ['✍️', 'Écriture'], ['🧩', 'Phrases puzzle']
+    ['📻', 'Radio'], ['📐', 'Grammaire'], ['🔤', 'Conjugaison'], ['✍️', 'Écriture']
   ];
   function viewHome() {
     const p = prof(); const m = mission(); const doneN = m.done.filter(Boolean).length;
@@ -536,24 +537,40 @@
         <div class="row between"><h2 style="margin:0">🎯 ${U('mission')}</h2><span>${doneN}/3</span></div>
         <p class="muted small">${U('missionSub')} (${state.settings.minutes} min)</p>
         <div class="bar" style="margin:8px 0 12px"><i style="width:${Math.round((doneN / 3) * 100)}%"></i></div>
-        ${doneN < 3 ? `<button class="btn primary block" data-act="mission" data-arg="${nextMissionStep()}">${doneN ? U('continue') : U('start')} : ${MISSION_STEPS[nextMissionStep()][2]}</button>` : '<p><b>Mission accomplie pour aujourd’hui ✓</b></p>'}
+        <div class="steps">${missionSteps().map((st, k) => `<span class="${m.done[k] ? 'done' : ''}">${m.done[k] ? '✓' : st[1]} ${st[2]}</span>`).join('')}</div>
+        ${doneN < 3 ? `<button class="btn primary block" data-act="mission" data-arg="${nextMissionStep()}">${doneN ? U('continue') : U('start')} : ${missionSteps()[nextMissionStep()][2]}</button>` : '<p><b>Mission accomplie pour aujourd’hui ✓</b></p>'}
       </div>
       <div class="card">
         <div class="row between"><span>${U('today')}</span><span class="small muted">${xpToday}/${g} XP</span></div>
         <div class="bar" style="margin-top:6px"><i style="width:${clamp(Math.round((xpToday / g) * 100), 0, 100)}%"></i></div>
         <div class="row between small muted" style="margin-top:8px"><span>🔥 ${currentStreak()} ${U('streak')}</span><span>Niveau joueur ${pl.lvl} · ${pl.rest}/${pl.need}</span></div>
       </div>
+      ${stock().days <= 10 ? stockCard() : ''}
+      <div class="section-title">Apprendre</div>
       <div class="grid">
         <button class="tile" data-act="go" data-arg="vocab"><span class="ic">🗂️</span><b>${U('vocab')} ${due ? `<span class="badge-n">${due}</span>` : ''}</b><small>${U('vocabSub')}</small></button>
+        <button class="tile" data-act="go" data-arg="lire"><span class="ic">📖</span><b>Compréhension</b><small>Texte du jour</small></button>
+        <button class="tile" data-act="go" data-arg="dialogue"><span class="ic">💬</span><b>Dialogues</b><small>Situations guidées</small></button>
+        <button class="tile" data-act="go" data-arg="telephone"><span class="ic">📞</span><b>Téléphone</b><small>Écouter sans texte</small></button>
         <button class="tile" data-act="go" data-arg="gaps"><span class="ic">✏️</span><b>${U('gaps')}</b><small>${U('gapsSub')}</small></button>
         <button class="tile" data-act="go" data-arg="quiz"><span class="ic">❓</span><b>${U('quiz')}</b><small>${U('quizSub')}</small></button>
-        <button class="tile" data-act="go" data-arg="erreurs"><span class="ic">📒</span><b>${U('errors')} ${errN ? `<span class="badge-n">${errN}</span>` : ''}</b><small>${U('errorsSub')}</small></button>
-        <button class="tile" data-act="go" data-arg="test"><span class="ic">🧭</span><b>${U('test')}</b><small>${U('testSub')}</small></button>
-        <button class="tile" data-act="go" data-arg="lire"><span class="ic">📖</span><b>Compréhension <span class="ai">✨</span></b><small>Textes à ton niveau</small></button>
-        <button class="tile" data-act="go" data-arg="dialogue"><span class="ic">💬</span><b>Dialogue <span class="ai">✨</span></b><small>Jeux de rôle corrigés</small></button>
-        <button class="tile" data-act="go" data-arg="ia-exercices"><span class="ic">🧪</span><b>Exercices IA <span class="ai">✨</span></b><small>Textes à trous illimités</small></button>
-        <button class="tile" data-act="go" data-arg="mots"><span class="ic">📚</span><b>Mes mots</b><small>${wordsLearned()} appris</small></button>
       </div>
+      <div class="section-title">S’entraîner</div>
+      <div class="grid">
+        <button class="tile" data-act="go" data-arg="dictee"><span class="ic">🎧</span><b>Dictée</b><small>Écouter et écrire</small></button>
+        <button class="tile" data-act="go" data-arg="puzzle"><span class="ic">🧩</span><b>Phrases puzzle</b><small>Remettre en ordre</small></button>
+        <button class="tile" data-act="go" data-arg="prononciation"><span class="ic">🗣️</span><b>Prononciation</b><small>Lire à voix haute</small></button>
+        <button class="tile" data-act="go" data-arg="fauxamis"><span class="ic">🎭</span><b>Faux amis</b><small>Pièges FR–DE</small></button>
+        <button class="tile" data-act="go" data-arg="suisse"><span class="ic">🇨🇭</span><b>Suisse romande</b><small>Helvétismes & culture</small></button>
+        <button class="tile" data-act="go" data-arg="erreurs"><span class="ic">📒</span><b>${U('errors')} ${errN ? `<span class="badge-n">${errN}</span>` : ''}</b><small>${U('errorsSub')}</small></button>
+      </div>
+      <div class="section-title">Outils</div>
+      <div class="grid">
+        <button class="tile" data-act="go" data-arg="test"><span class="ic">🧭</span><b>${U('test')}</b><small>${U('testSub')}</small></button>
+        <button class="tile" data-act="go" data-arg="mots"><span class="ic">📚</span><b>Mes mots</b><small>${wordsLearned()} appris</small></button>
+        <button class="tile" data-act="go" data-arg="ia-exercices"><span class="ic">🧪</span><b>Exercices IA <span class="ai">✨</span></b><small>Avec clé Gemini</small></button>
+      </div>
+      ${stock().days > 10 ? stockCard() : ''}
       <div class="section-title">${U('soon')}</div>
       <div class="grid">${ROADMAP.map((r) => `<div class="tile soon"><span class="ic">${r[0]}</span><b>${r[1]}</b><small>${U('soon')}</small></div>`).join('')}</div>`;
   }
@@ -649,6 +666,326 @@
       const s = JSON.parse(txt); if (!s || !s.profiles || !s.settings) throw new Error('format');
       state = Object.assign(defaultState(), s); save(); applyTheme(); renderTop(); toast('Sauvegarde importée ✓'); route();
     } catch (e) { toast('Import impossible : fichier non valide.'); }
+  }
+
+  /* ======================================================================
+     Monatspaket (ohne KI): Texte du jour, geführte Dialoge, Telefon,
+     Diktat, Satzpuzzle, Aussprache, Faux amis, Suisse romande
+     ====================================================================== */
+  const PACK_NAME = 'Paquet 1 (décembre 2026)';
+  function packTexts() { return pack().reading || []; }
+  function packDialogs() { return pack().dialogues || []; }
+  function doneMap(k) { const p = prof(); p[k] = p[k] || {}; return p[k]; }
+  function nextByLevel(list, doneKey, skill, filter) {
+    const done = doneMap(doneKey); const L = lvlIdx(prof().levels[skill]);
+    const fresh = list.filter((x) => !done[x.id] && (!filter || filter(x)));
+    for (const d of [0, -1, 1, -2, 2, -3, 3]) { const c = fresh.filter((x) => lvlIdx(x.l) === L + d); if (c.length) return c[0]; }
+    return null;
+  }
+  const nextText = () => nextByLevel(packTexts(), 'readDone', 'reading');
+  const nextDialog = (f) => nextByLevel(packDialogs(), 'dlgDone', 'vocab', f);
+  function stock() {
+    const tLeft = packTexts().filter((t) => !doneMap('readDone')[t.id]).length;
+    const dLeft = packDialogs().filter((d) => !doneMap('dlgDone')[d.id]).length;
+    return { tLeft, dLeft, days: tLeft + dLeft };
+  }
+  function stockCard() {
+    const s = stock();
+    if (s.days > 10) return `<p class="small muted center">📦 ${PACK_NAME} : encore env. ${s.days} jours de contenu (${s.tLeft} textes, ${s.dLeft} dialogues).</p>`;
+    return `<div class="card warn"><b>📦 ${s.days ? 'Le paquet de contenu se termine bientôt' : 'Paquet de contenu terminé'}</b>
+      <p class="small">${s.days ? `Encore env. ${s.days} jours (${s.tLeft} textes, ${s.dLeft} dialogues).` : 'Tous les textes et dialogues ont été faits. Les autres exercices continuent de fonctionner.'}</p>
+      <p class="small muted">🇩🇪 Zeit für ein neues Inhaltspaket: Schreib Claude im Chat, dass du das nächste Paket brauchst.</p></div>`;
+  }
+
+  /* ---------- Mission mit wechselnden Schritten ---------- */
+  function dayNum() { return Math.floor(new Date(today() + 'T12:00:00').getTime() / 864e5); }
+  function missionSteps() {
+    const odd = dayNum() % 2 === 1;
+    const s = [['vocab', '🗂️', 'Vocabulaire'], odd ? ['quiz', '❓', 'Quiz'] : ['gaps', '✏️', 'Texte à trous']];
+    const t = nextText(), d = nextDialog();
+    if (odd ? d : !t && d) s.push(['dialog', '💬', 'Dialogue guidé']);
+    else if (t) s.push(['text', '📖', 'Texte du jour']);
+    else s.push(odd ? ['gaps', '✏️', 'Texte à trous'] : ['quiz', '❓', 'Quiz']);
+    return s;
+  }
+
+  /* ---------- Texte du jour ---------- */
+  function packReading(t) { return Object.assign({}, t, { level: t.l, pack: true }); }
+  function startText(id, missionStep) {
+    const t = packTexts().find((x) => x.id === id) || nextText();
+    if (!t) { toast('Plus de texte disponible dans ce paquet.'); return; }
+    showReading(packReading(t));
+    session.missionStep = missionStep;
+  }
+  function viewReadingPack() {
+    const t = nextText(); const done = doneMap('readDone');
+    const read = packTexts().filter((x) => done[x.id]);
+    return `<div class="card"><h1>📖 Compréhension écrite</h1>
+        <p class="small muted">Un texte par jour, adapté à ton niveau (${prof().levels.reading}), avec des questions et le vocabulaire important.</p>
+        ${t ? `<div class="passage"><span class="chip">${t.l} · ${esc(t.topic)}</span><h3 style="margin:6px 0 0">${esc(t.title)}</h3></div>
+          <button class="btn primary block" data-act="textStart" data-arg="${t.id}">Lire le texte du jour</button>` : '<p>Tous les textes du paquet ont été lus. 🎉</p>'}
+      </div>
+      ${read.length ? `<div class="card"><details><summary><b>Textes déjà lus (${read.length})</b></summary><ul class="list">${read.map((x) => `<li class="small row between"><span>${x.l} · ${esc(x.title)}</span><button class="btn small ghost" data-act="textStart" data-arg="${x.id}">Relire</button></li>`).join('')}</ul></details></div>` : ''}
+      ${stockCard()}`;
+  }
+
+  /* ---------- Geführte Dialoge (auch Telefon) ---------- */
+  function dlgMode() { return state.settings.dlgMode || 'choice'; }
+  function viewDialogPack(phone) {
+    const done = doneMap('dlgDone');
+    let list = packDialogs().slice();
+    if (phone) list.sort((a, b) => (b.tel ? 1 : 0) - (a.tel ? 1 : 0));
+    const rec = nextDialog(phone ? (x) => x.tel : null) || nextDialog();
+    const L = lvlIdx(prof().levels.vocab);
+    return `<div class="card"><h1>${phone ? '📞 Appel téléphonique' : '💬 Dialogues guidés'}</h1>
+        <p class="small muted">${phone ? 'Ton interlocuteur parle, mais son texte est caché : écoute bien ! Réponds en choisissant, en écrivant ou en dictant.' : 'Des situations du quotidien, étape par étape, avec correction.'}</p>
+        <div class="field"><label class="small">Ma réponse</label>${seg('dlgMode', [['choice', '👆 Choisir'], ['write', '✍️ Écrire']], dlgMode())}</div>
+        ${phone && !audioOn() ? '<p class="small"><b>🔇 Le mode sans son est activé.</b> <button class="btn small" data-act="toggleAudio">Activer le son</button></p>' : ''}
+        ${phone && audioOn() && !voice ? '<p class="small"><b>Aucune voix française installée</b> – voir Réglages › Voix.</p>' : ''}
+      </div>
+      <div class="grid">${list.map((d) => `<button class="tile ${rec && rec.id === d.id ? 'rec' : ''}" data-act="${phone ? 'phoneStart' : 'dlgStart'}" data-arg="${d.id}"><span class="ic">${d.ic}${done[d.id] ? ' ✓' : ''}</span><b>${esc(d.t)}</b><small>${d.l}${lvlIdx(d.l) > L ? ' · un peu difficile' : ''}${d.tel ? ' · 📞' : ''}${rec && rec.id === d.id ? ' · conseillé' : ''}</small></button>`).join('')}</div>
+      ${phone ? '' : stockCard()}`;
+  }
+  function startGuided(id, opts) {
+    const d = packDialogs().find((x) => x.id === id) || nextDialog();
+    if (!d) { toast('Plus de dialogue disponible.'); return; }
+    opts = opts || {}; if (!voice) pickVoice();
+    if (opts.phone && (!audioOn() || !voice)) { toast(audioOn() ? 'Aucune voix française installée – voir Réglages.' : 'Active d’abord le son 🔊.'); return; }
+    session = { kind: 'guided', d, i: 0, xp: 0, good: 0, hist: [], phase: 'ask', phone: !!opts.phone, missionStep: opts.missionStep, mode: dlgMode(), showText: false };
+    document.body.classList.add('in-session');
+    renderGuided(true);
+  }
+  function renderGuided(speakNow) {
+    const s = session; const d = s.d; const st = d.steps[s.i]; const end = s.i >= d.steps.length;
+    const pct = Math.round((s.i / d.steps.length) * 100);
+    const partnerBubble = (text, cur) => s.phone && cur && !s.showText
+      ? `<div class="msg ai">📞 <i>…</i> <button class="mini" data-act="speak" data-arg="${regSpeak(text)}">🔊 Réécouter</button> <button class="mini" data-act="dlgShowText">👁️ Texte</button></div>`
+      : `<div class="msg ai">${esc(text)}${audioOn() ? ` <button class="mini" data-act="speak" data-arg="${regSpeak(text)}">🔊</button>` : ''}</div>`;
+    let html = `<div class="ex-head"><button class="x" data-act="quit" aria-label="Quitter">✕</button><div class="bar"><i style="width:${pct}%"></i></div><span class="small muted">${Math.min(s.i + 1, d.steps.length)}/${d.steps.length}</span></div>
+      <div class="card"><b>${d.ic} ${esc(d.t)}</b><p class="small muted" style="margin:4px 0 0">${esc(d.intro)}</p></div>
+      <div class="chat" style="padding-bottom:20px">`;
+    s.hist.forEach((h) => { html += `<div class="msg ai">${esc(h.p)}</div><div class="msg me">${esc(h.a)}</div>`; });
+    if (end) {
+      html += partnerBubble(d.end, false) + `</div><button class="btn primary block" data-act="dlgFinish">${U('finish')}</button>`;
+      $('#app').innerHTML = html; if (speakNow) speak(d.end, false, true); window.scrollTo(0, document.body.scrollHeight); return;
+    }
+    html += partnerBubble(st.p, true) + '</div>';
+    if (s.phase === 'ask') {
+      if (s.mode === 'choice') {
+        if (!st.sh) st.sh = shuffle(st.o);
+        html += `<div class="opts">${st.sh.map((o, k) => `<button class="opt" data-act="dlgPick" data-arg="${k}">${esc(o)}</button>`).join('')}</div>`;
+      } else {
+        html += `<textarea id="chatInput" class="input" rows="3" placeholder="Ta réponse en français…"></textarea>
+          <div class="btnrow" style="margin-top:8px">${SR && audioOn() ? '<button class="btn small" data-act="dictate">🎤</button>' : ''}<button class="btn primary" data-act="dlgWrite">Valider</button></div>`;
+      }
+    } else {
+      const ok = s.last === 'ok';
+      html += `<div class="feedback ${s.mode === 'write' ? '' : ok ? 'ok' : 'ko'}" style="${s.mode === 'write' ? 'background:var(--accent-soft)' : ''}">
+          ${s.mode === 'write' ? `<div class="small muted">Ta réponse : ${esc(s.mine)}</div><div class="title" style="margin-top:6px">Réponse modèle :</div>` : `<div class="title">${ok ? '✓ ' + U('correct') : '✗ Meilleure réponse :'}</div>`}
+          <div><b>${esc(st.a)}</b></div>${audioBtns(st.a)}${explainHtml({ fr: st.fr, de: st.de })}</div>
+        ${s.mode === 'write' && !s.rated ? `<p class="small" style="margin:10px 0 4px">Ta réponse était…</p><div class="btnrow"><button class="btn small" data-act="dlgRate" data-arg="2">✓ juste</button><button class="btn small" data-act="dlgRate" data-arg="1">≈ presque</button><button class="btn small" data-act="dlgRate" data-arg="0">✗ différente</button></div>`
+          : `<button class="btn primary block" style="margin-top:12px" data-act="dlgNext">${U('continue')}</button>`}`;
+    }
+    $('#app').innerHTML = html;
+    if (speakNow) speak(st.p, false, true);
+    window.scrollTo(0, document.body.scrollHeight);
+  }
+  function dlgPick(k) {
+    const s = session; const st = s.d.steps[s.i]; const ok = st.sh[Number(k)] === st.a;
+    s.last = ok ? 'ok' : 'ko'; s.phase = 'feedback';
+    if (ok) { s.good++; s.xp += 5; } else s.xp += 1;
+    renderGuided(false);
+  }
+  function dlgWrite() {
+    const s = session; const v = ($('#chatInput').value || '').trim();
+    if (!v) { toast('Écris d’abord ta réponse.'); return; }
+    s.mine = v; s.phase = 'feedback'; s.rated = false; renderGuided(false);
+  }
+  function dlgRate(r) { const s = session; r = Number(r); s.rated = true; if (r === 2) s.good++; s.xp += [1, 3, 5][r]; renderGuided(false); }
+  function dlgNext() {
+    const s = session; const st = s.d.steps[s.i];
+    s.hist.push({ p: st.p, a: st.a }); s.i++; s.phase = 'ask'; s.showText = false; renderGuided(true);
+  }
+  function dlgFinish() {
+    const s = session; doneMap('dlgDone')[s.d.id] = today(); save();
+    finishSession(s.good, s.d.steps.length, s.xp + 5, s.missionStep);
+  }
+
+  /* ---------- Satz-Sammlung für Diktat, Puzzle, Aussprache ---------- */
+  function sentencePool(minW, maxW) {
+    const pr = prof(); const out = [];
+    const near = (l, skill) => Math.abs(lvlIdx(l) - lvlIdx(pr.levels[skill])) <= 1;
+    P().gaps.forEach((g) => { if (near(g.l, 'grammar')) out.push({ id: g.id, l: g.l, s: g.s.replace('___', g.a) }); });
+    P().vocab.forEach((w) => { if (w.ex && near(w.l, 'vocab')) out.push({ id: w.id, l: w.l, s: w.ex }); });
+    packTexts().forEach((t) => { if (near(t.l, 'reading')) t.text.split(/\n+/).forEach((para, pi) => para.split(/(?<=[.!?])\s+/).forEach((x, i) => out.push({ id: t.id + '.' + pi + '.' + i, l: t.l, s: x.trim() }))); });
+    return out.filter((x) => { const n = x.s.split(/\s+/).length; return n >= minW && n <= maxW && !/[«»"…—\/()\d:;]/.test(x.s) && !/→|\[/.test(x.s); });
+  }
+  function pickSentences(n, minW, maxW) {
+    const pool = sentencePool(minW, maxW);
+    return pickItems(pool, 'reading', n, 'sent:');
+  }
+  const normTxt = (s) => s.toLowerCase().replace(/[’`´ʼ]/g, '\'').replace(/['](?=\S)/g, '\' ').replace(/[-–—]/g, ' ').replace(/[.,!?;:«»"()…]/g, ' ').replace(/\s+/g, ' ').trim();
+  const stripAcc = (s) => s.normalize('NFD').replace(/[̀-ͯ]/g, '');
+  function lcsPairs(a, b, eq) {
+    const n = a.length, m = b.length; const dp = Array.from({ length: n + 1 }, () => new Array(m + 1).fill(0));
+    for (let i = n - 1; i >= 0; i--) for (let j = m - 1; j >= 0; j--) dp[i][j] = eq(a[i], b[j]) ? dp[i + 1][j + 1] + 1 : Math.max(dp[i + 1][j], dp[i][j + 1]);
+    const pairs = []; let i = 0, j = 0;
+    while (i < n && j < m) { if (eq(a[i], b[j])) { pairs.push([i, j]); i++; j++; } else if (dp[i + 1][j] >= dp[i][j + 1]) i++; else j++; }
+    return pairs;
+  }
+  function needAudio(title) {
+    if (!voice) pickVoice();
+    if (!audioOn()) return `<div class="card"><h2>${title}</h2><p>Ce module a besoin du son.</p><button class="btn primary" data-act="toggleAudio">🔊 Activer le son</button></div>`;
+    if (!voice) return `<div class="card"><h2>${title}</h2><p>Aucune voix française n’est installée sur cet appareil.</p><a class="btn" href="#reglages">Réglages › Voix</a></div>`;
+    return '';
+  }
+
+  /* ---------- Diktat ---------- */
+  function startDictee() {
+    const block = needAudio('🎧 Dictée'); if (block) { $('#app').innerHTML = block; return; }
+    const n = { 5: 4, 10: 6, 15: 8 }[state.settings.minutes];
+    const items = pickSentences(n, 4, 13);
+    if (!items.length) { toast('Pas de phrases disponibles.'); return; }
+    session = { kind: 'dictee', items, i: 0, xp: 0, good: 0, phase: 'ask' };
+    document.body.classList.add('in-session'); renderDictee(true);
+  }
+  function renderDictee(play) {
+    const s = session; const it = s.items[s.i]; const pct = Math.round((s.i / s.items.length) * 100);
+    let html = `<div class="ex-head"><button class="x" data-act="quit" aria-label="Quitter">✕</button><div class="bar"><i style="width:${pct}%"></i></div><span class="small muted">${s.i + 1}/${s.items.length}</span></div>
+      <div class="card"><span class="chip">${it.l} · dictée</span><p class="small muted" style="margin-top:8px">Écoute et écris la phrase (avec les accents).</p>${audioBtns(it.s)}`;
+    if (s.phase === 'ask') {
+      html += `<textarea id="dictInput" class="input" rows="3" autocapitalize="sentences" spellcheck="false" placeholder="Écris ce que tu entends…"></textarea>
+        <button class="btn primary block" style="margin-top:10px" data-act="dictCheck">Vérifier</button></div>`;
+    } else {
+      const r = s.res;
+      html += `<div class="feedback ${r.state === 'ok' ? 'ok' : r.state === 'acc' ? '' : 'ko'}" style="${r.state === 'acc' ? 'background:var(--accent-soft)' : ''}">
+          <div class="title">${r.state === 'ok' ? '✓ Parfait !' : r.state === 'acc' ? '≈ Presque – attention aux accents' : '✗ Pas tout à fait'}</div>
+          <div class="small muted">Ta version : ${esc(s.mine)}</div>
+          <div class="diff" style="margin-top:6px">${r.marks.map(([w, c]) => `<span class="mk-${c}">${esc(w)}</span>`).join(' ')}</div>
+          <div class="small" style="margin-top:6px">Phrase : <b>${esc(it.s)}</b></div>
+        </div><button class="btn primary block" style="margin-top:12px" data-act="dictNext">${s.i + 1 < s.items.length ? U('continue') : U('finish')}</button></div>`;
+    }
+    $('#app').innerHTML = html;
+    if (play) setTimeout(() => speak(it.s, true, true), 300);
+  }
+  function dictCheck() {
+    const s = session; const it = s.items[s.i]; const mine = ($('#dictInput').value || '').trim();
+    if (!mine) { toast('Écris d’abord la phrase.'); return; }
+    const T = normTxt(it.s).split(' '); const M = normTxt(mine).split(' ').filter(Boolean);
+    const pairs = lcsPairs(T, M, (a, b) => stripAcc(a) === stripAcc(b));
+    const marks = T.map((w) => [w, 'miss']); let acc = false;
+    pairs.forEach(([i, j]) => { if (T[i] === M[j]) marks[i][1] = 'ok'; else { marks[i][1] = 'acc'; acc = true; } });
+    const allMatched = pairs.length === T.length && M.length === T.length;
+    const state_ = allMatched ? (acc ? 'acc' : 'ok') : 'ko';
+    s.res = { state: state_, marks }; s.mine = mine; s.phase = 'fb';
+    if (state_ === 'ok') { s.good++; s.xp += 6; } else if (state_ === 'acc') s.xp += 3; else s.xp += 1;
+    prof().seen['sent:' + it.id] = today(); save();
+    renderDictee(false);
+  }
+  function dictNext() { const s = session; s.i++; s.phase = 'ask'; if (s.i < s.items.length) renderDictee(true); else finishSession(s.good, s.items.length, s.xp); }
+
+  /* ---------- Satzpuzzle ---------- */
+  function startPuzzle() {
+    const n = { 5: 4, 10: 6, 15: 8 }[state.settings.minutes];
+    const items = pickSentences(n, 5, 12).map((x) => {
+      const m = x.s.match(/^(.*?)\s*([.!?])?$/); const words = m[1].split(/\s+/);
+      let sh = shuffle(words.map((w, i) => i)); let tries = 0;
+      while (sh.every((v, i) => v === i) && tries++ < 5) sh = shuffle(sh);
+      return Object.assign({}, x, { words, end: m[2] || '', sh, picked: [] });
+    });
+    if (!items.length) { toast('Pas de phrases disponibles.'); return; }
+    session = { kind: 'puzzle', items, i: 0, xp: 0, good: 0, phase: 'ask' };
+    document.body.classList.add('in-session'); renderPuzzle();
+  }
+  function renderPuzzle() {
+    const s = session; const it = s.items[s.i]; const pct = Math.round((s.i / s.items.length) * 100);
+    const used = new Set(it.picked);
+    let html = `<div class="ex-head"><button class="x" data-act="quit" aria-label="Quitter">✕</button><div class="bar"><i style="width:${pct}%"></i></div><span class="small muted">${s.i + 1}/${s.items.length}</span></div>
+      <div class="card"><span class="chip">${it.l} · phrase puzzle</span><p class="small muted" style="margin-top:8px">Remets les mots dans le bon ordre.</p>
+      <div class="pz-answer">${it.picked.map((wi, k) => `<button class="pz on" data-act="pzBack" data-arg="${k}" ${s.phase !== 'ask' ? 'disabled' : ''}>${esc(it.words[wi])}</button>`).join('') || '<span class="muted small">…</span>'}<span class="pz-end">${esc(it.end)}</span></div>
+      <div class="pz-bank">${it.sh.map((wi) => used.has(wi) ? '' : `<button class="pz" data-act="pzAdd" data-arg="${wi}">${esc(it.words[wi])}</button>`).join('')}</div>`;
+    if (s.phase === 'ask') html += `<button class="btn primary block" style="margin-top:12px" data-act="pzCheck" ${it.picked.length === it.words.length ? '' : 'disabled'}>Vérifier</button></div>`;
+    else html += `<div class="feedback ${s.ok ? 'ok' : 'ko'}"><div class="title">${s.ok ? '✓ ' + U('correct') : '✗ ' + U('wrong')}</div>${s.ok ? '' : `<div>${esc(it.s)}</div>`}${audioBtns(it.s)}</div>
+      <button class="btn primary block" style="margin-top:12px" data-act="pzNext">${s.i + 1 < s.items.length ? U('continue') : U('finish')}</button></div>`;
+    $('#app').innerHTML = html;
+  }
+  function pzAdd(wi) { const it = session.items[session.i]; it.picked.push(Number(wi)); renderPuzzle(); }
+  function pzBack(k) { const it = session.items[session.i]; it.picked.splice(Number(k), 1); renderPuzzle(); }
+  function pzCheck() {
+    const s = session; const it = s.items[s.i];
+    s.ok = it.picked.map((wi) => it.words[wi]).join(' ') === it.words.join(' ');
+    if (s.ok) { s.good++; s.xp += 5; } else s.xp += 1;
+    prof().seen['sent:' + it.id] = today(); save();
+    s.phase = 'fb'; renderPuzzle();
+  }
+  function pzNext() { const s = session; s.i++; s.phase = 'ask'; if (s.i < s.items.length) renderPuzzle(); else finishSession(s.good, s.items.length, s.xp); }
+
+  /* ---------- Aussprache ---------- */
+  function startPron() {
+    if (!SR) { $('#app').innerHTML = `<div class="card"><h2>🗣️ Prononciation</h2><p>Ce navigateur ne propose pas la reconnaissance vocale.</p><p class="small muted">🇩🇪 Öffne die App in <b>Chrome</b>, dort funktioniert die Spracherkennung. Samsung Internet unterstützt sie teilweise nicht.</p></div>`; return; }
+    const block = needAudio('🗣️ Prononciation'); if (block) { $('#app').innerHTML = block; return; }
+    const n = { 5: 4, 10: 6, 15: 8 }[state.settings.minutes];
+    const items = pickSentences(n, 3, 10);
+    session = { kind: 'pron', items, i: 0, xp: 0, good: 0, best: 0, res: null, listening: false };
+    document.body.classList.add('in-session'); renderPron();
+  }
+  function renderPron() {
+    const s = session; const it = s.items[s.i]; const pct = Math.round((s.i / s.items.length) * 100); const r = s.res;
+    $('#app').innerHTML = `<div class="ex-head"><button class="x" data-act="quit" aria-label="Quitter">✕</button><div class="bar"><i style="width:${pct}%"></i></div><span class="small muted">${s.i + 1}/${s.items.length}</span></div>
+      <div class="card center"><span class="chip">${it.l} · prononciation</span>
+        <p class="prompt" style="margin-top:12px">${esc(it.s)}</p>
+        ${audioBtns(it.s)}
+        <button class="btn primary block mic ${s.listening ? 'rec' : ''}" data-act="pronSpeak" ${s.listening ? 'disabled' : ''}>${s.listening ? '⏺️ J’écoute…' : '🎤 Lire à voix haute'}</button>
+        ${r ? `<div class="feedback ${r.score >= 0.9 ? 'ok' : r.score >= 0.7 ? '' : 'ko'}" style="${r.score >= 0.7 && r.score < 0.9 ? 'background:var(--accent-soft)' : ''}">
+          <div class="title">${r.score >= 0.9 ? '✓ Excellent !' : r.score >= 0.7 ? '≈ Bien, encore un effort' : '✗ Essaie encore'} (${Math.round(r.score * 100)} %)</div>
+          <div class="small muted">Compris : « ${esc(r.heard)} »</div>
+          ${r.score < 1 ? `<div class="diff small" style="margin-top:6px">${r.marks.map(([w, c]) => `<span class="mk-${c}">${esc(w)}</span>`).join(' ')}</div>` : ''}</div>` : ''}
+        <div class="btnrow" style="margin-top:12px"><button class="btn" data-act="pronNext">${s.i + 1 < s.items.length ? 'Phrase suivante' : U('finish')}</button></div>
+      </div>`;
+  }
+  function pronSpeak() {
+    const s = session; const it = s.items[s.i];
+    try {
+      const rec = new SR(); rec.lang = 'fr-FR'; rec.interimResults = false; rec.maxAlternatives = 3;
+      s.listening = true; renderPron();
+      rec.onresult = (e) => {
+        const T = normTxt(it.s).split(' ');
+        let best = null;
+        for (let k = 0; k < e.results[0].length; k++) {
+          const heard = e.results[0][k].transcript; const H = normTxt(heard).split(' ').filter(Boolean);
+          const pairs = lcsPairs(T, H, (a, b) => stripAcc(a) === stripAcc(b));
+          const score = pairs.length / Math.max(T.length, H.length);
+          if (!best || score > best.score) { const marks = T.map((w) => [w, 'miss']); pairs.forEach(([i]) => (marks[i][1] = 'ok')); best = { score, heard, marks }; }
+        }
+        s.res = best;
+        const pts = best.score >= 0.9 ? 5 : best.score >= 0.7 ? 3 : 1;
+        if (pts > (s.bestPts || 0)) { s.xp += pts - (s.bestPts || 0); s.bestPts = pts; }
+        s.best = Math.max(s.best, best.score);
+      };
+      rec.onerror = (e) => toast(e.error === 'not-allowed' ? 'Micro refusé par le navigateur.' : e.error === 'no-speech' ? 'Je n’ai rien entendu.' : 'Reconnaissance impossible (' + e.error + ').');
+      rec.onend = () => { s.listening = false; if (session === s) renderPron(); };
+      rec.start();
+    } catch (e) { s.listening = false; toast('Reconnaissance vocale non disponible ici.'); }
+  }
+  function pronNext() {
+    const s = session; if (s.best >= 0.9) s.good++;
+    prof().seen['sent:' + s.items[s.i].id] = today(); save();
+    s.i++; s.res = null; s.best = 0; s.bestPts = 0;
+    if (s.i < s.items.length) renderPron(); else finishSession(s.good, s.items.length, s.xp);
+  }
+
+  /* ---------- Faux amis & Suisse romande ---------- */
+  const SUISSE_RX = /Suisse|romand|Romand|Fribourg|Gruyère|Bénichon|Léman|Sarine|Röstigraben|septante|nonante|huitante|natel|bancomat|votation|panosse|cornet|syndic|pendulaire|Confédéré|tournus|piquet|régie|course d’école/;
+  function startFauxAmis() {
+    const items = pickItems(P().quiz.filter((q) => /Faux ami/.test(q.q)), 'vocab', 8, 'quiz:')
+      .map((q) => ({ key: 'quiz:' + q.id, chip: q.l + ' · faux amis', prompt: esc(q.q), options: q.o, answer: q.a, explain: { fr: q.fr, de: q.de } }));
+    startMC('Faux amis', items, {});
+  }
+  function startSuisse() {
+    const qs = pickItems(P().quiz.filter((q) => SUISSE_RX.test(q.q)), 'vocab', 5, 'quiz:')
+      .map((q) => ({ key: 'quiz:' + q.id, chip: q.l + ' · Suisse romande', prompt: esc(q.q), options: q.o, answer: q.a, explain: { fr: q.fr, de: q.de } }));
+    const ws = pickItems(P().vocab.filter((w) => w.th === 'suisse'), 'vocab', 3, 'vocab:').map(vocabMC);
+    startMC('Suisse romande', shuffle(qs.concat(ws)), {});
   }
 
   /* ======================================================================
@@ -815,11 +1152,12 @@ Glossary: 6–8 useful words or expressions from the text (in dictionary form, w
     return { title: r.title || 'Texte', text: r.text, questions: qs, glossary: (r.glossary || []).filter((g) => g.fr && g.de).slice(0, 10), level, topic, date: today() };
   }
   function viewReading() {
-    if (!aiReady()) { $('#app').innerHTML = aiSetupCard(); return; }
+    const packHtml = viewReadingPack();
+    if (!aiReady()) { $('#app').innerHTML = packHtml + '<p class="small muted center">✨ Avec une clé Gemini (Réglages), tu peux aussi générer des textes supplémentaires.</p>'; return; }
     const c = aiCache();
     const chips = (list, cur, act) => `<div class="chips">${list.map(([k, l]) => `<button class="chipbtn ${cur === k ? 'on' : ''}" data-act="${act}" data-arg="${k}">${l}</button>`).join('')}</div>`;
-    $('#app').innerHTML = `<div class="card"><h1>📖 Compréhension écrite</h1>
-        <p class="small muted">Un texte original à ton niveau (${prof().levels.reading}), puis des questions. Les mots utiles peuvent rejoindre ton vocabulaire.</p>
+    $('#app').innerHTML = packHtml + `<div class="card"><h2>✨ Texte supplémentaire (IA)</h2>
+        <p class="small muted">Un texte original généré par Gemini à ton niveau (${prof().levels.reading}).</p>
         <div class="field"><label>Thème</label>${chips(R_TOPICS, ui.rTopic, 'rTopic')}</div>
         <div class="field"><label>Type de texte</label>${chips(R_TYPES, ui.rType, 'rType')}</div>
         <button class="btn primary block" data-act="readGen">✨ Générer un texte</button>
@@ -845,9 +1183,10 @@ Glossary: 6–8 useful words or expressions from the text (in dictionary form, w
     window.scrollTo(0, 0);
   }
   function readQuestions() {
-    const r = session.r;
+    const r = session.r; const ms = session.missionStep;
+    if (r.pack) { doneMap('readDone')[r.id] = today(); save(); }
     const items = r.questions.map((q, i) => ({ key: 'ai:read' + i, chip: `${r.level} · compréhension`, prompt: esc(q.q), textRef: r.text, options: q.o, answer: q.a, explain: { fr: q.fr, de: q.de } }));
-    startMC('Compréhension', items, {});
+    startMC('Compréhension', items, { missionStep: ms });
     session.xp += 10; // Bonus fürs Lesen
   }
 
@@ -927,10 +1266,11 @@ Scenario: ${sc.t}. Your role: ${sc.role}. ${sc.task}
 - If the message is "[START]", open the conversation in your role; then correction/fr/de are empty.`;
   }
   function viewDialog() {
-    if (!aiReady()) { $('#app').innerHTML = aiSetupCard(); return; }
+    const packHtml = viewDialogPack(false);
+    if (!aiReady()) { $('#app').innerHTML = packHtml + '<p class="small muted center">✨ Avec une clé Gemini (Réglages), tu peux aussi discuter librement avec l’IA.</p>'; return; }
     const L = lvlIdx(chatLevel());
-    $('#app').innerHTML = `<div class="card"><h1>💬 Dialogue</h1>
-      <p class="small muted">Jeu de rôle avec correction de chaque message. Niveau : ${chatLevel()}. Tu peux écrire${SR ? ' ou dicter 🎤' : ''}.</p></div>
+    $('#app').innerHTML = packHtml + `<div class="card"><h2>✨ Dialogue libre (IA)</h2>
+      <p class="small muted">Jeu de rôle avec Gemini, correction de chaque message. Niveau : ${chatLevel()}. Tu peux écrire${SR ? ' ou dicter 🎤' : ''}.</p></div>
       <div class="grid">${SCENARIOS.map((s) => `<button class="tile" data-act="chatStart" data-arg="${s.id}"><span class="ic">${s.ic}</span><b>${esc(s.t)}</b><small>${lvlIdx(s.min) > L ? 'un peu difficile' : 'niveau ' + s.min + '+'}</small></button>`).join('')}</div>
       <p class="small muted">N’indique pas de vraies données personnelles : invente si nécessaire.</p>`;
   }
@@ -1087,6 +1427,12 @@ Give feedback on the LEARNER's French only: "bilan_fr" = 2–3 encouraging, conc
       case 'lire': viewReading(); break;
       case 'ia-exercices': viewAiGaps(); break;
       case 'dialogue': viewDialog(); break;
+      case 'telephone': $('#app').innerHTML = viewDialogPack(true); break;
+      case 'dictee': startDictee(); break;
+      case 'puzzle': startPuzzle(); break;
+      case 'prononciation': startPron(); break;
+      case 'fauxamis': startFauxAmis(); break;
+      case 'suisse': startSuisse(); break;
       case 'vocab': startVocab(); break;
       case 'gaps': startMC(U('gaps'), gapItems(cfg.gaps + 2)); break;
       case 'quiz': startMC(U('quiz'), quizItems(cfg.quiz + 2)); break;
@@ -1112,7 +1458,7 @@ Give feedback on the LEARNER's French only: "bilan_fr" = 2–3 encouraging, conc
       const [k, v] = arg.split('=');
       if (k === 'lang') { if (packs[v]) state.lang = v; }
       else state.settings[k] = k === 'minutes' ? Number(v) : k === 'rate' ? Number(v) : v;
-      save(); applyTheme(); if (k === 'lang') pickVoice(); viewSettings(); renderTop();
+      save(); applyTheme(); if (k === 'lang') pickVoice(); if (location.hash === '#reglages') viewSettings(); else route(); renderTop();
     },
     testVoice: () => speak('Bonjour ! On apprend le français ensemble ?'),
     exportCopy: () => { const t = JSON.stringify(state); if (navigator.clipboard) navigator.clipboard.writeText(t).then(() => toast('Copié ✓ – colle-le dans une note ou un e-mail.'), () => { $('#importBox').value = t; toast('Copie impossible : texte affiché ci-dessous.'); }); else { $('#importBox').value = t; } },
@@ -1122,6 +1468,9 @@ Give feedback on the LEARNER's French only: "bilan_fr" = 2–3 encouraging, conc
     resetNo: () => { $('#resetBox').innerHTML = ''; },
     resetYes: () => { state = defaultState(); save(); applyTheme(); toast('Réinitialisé.'); location.hash = '#home'; route(); },
     rTopic: (k) => { ui.rTopic = k; viewReading(); }, rType: (k) => { ui.rType = k; viewReading(); }, gFocus: (k) => { ui.gFocus = k; viewAiGaps(); },
+    textStart: (id) => startText(id), dlgStart: (id) => startGuided(id), phoneStart: (id) => startGuided(id, { phone: true }),
+    dlgPick, dlgWrite, dlgRate, dlgNext, dlgFinish, dlgShowText: () => { session.showText = true; renderGuided(false); },
+    dictCheck, dictNext, pzAdd, pzBack, pzCheck, pzNext, pronSpeak, pronNext,
     readGen, readCached, readQuestions, gapGen, gapCached, chatStart, chatSend, chatEnd, dictate, aiSaveKey, aiPrepare,
     chatHint: () => { session.showHint = true; renderChat(); },
     chatRetry: () => { const s = session; s.error = ''; const last = s.msgs[s.msgs.length - 1]; chatTurn(last && last.role === 'me' ? last.text : '[START]'); },
@@ -1161,5 +1510,5 @@ Give feedback on the LEARNER's French only: "bilan_fr" = 2–3 encouraging, conc
   window.addEventListener('hashchange', route);
   route();
   registerSW();
-  window.__lingua = { get state() { return state; }, P, estimate, aiConf }; // für Tests/Debugging
+  window.__lingua = { get state() { return state; }, get session() { return session; }, P, estimate, aiConf }; // für Tests/Debugging
 })();

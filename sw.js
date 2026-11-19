@@ -1,8 +1,8 @@
 /* Service Worker: macht die App offline nutzbar.
    Bei jeder Änderung an der App die Versionsnummer erhöhen, damit das Handy die neue Version lädt. */
-const CACHE = 'lingua-v1.3.0';
+const CACHE = 'lingua-v1.4.0';
 const FILES = [
-  './', './index.html', './css/style.css', './js/app.js', './lang/fr/pack.js', './lang/fr/vocab-extra.js', './lang/fr/gaps-extra.js', './lang/fr/quiz-extra.js', './lang/fr/test-extra.js',
+  './', './index.html', './css/style.css', './js/app.js', './lang/fr/pack.js', './lang/fr/vocab-extra.js', './lang/fr/gaps-extra.js', './lang/fr/quiz-extra.js', './lang/fr/test-extra.js', './lang/fr/m1-textes.js', './lang/fr/m1-dialogues.js', './lang/fr/m1-exercices.js',
   './manifest.webmanifest', './icons/icon-192.png', './icons/icon-512.png'
 ];
 
