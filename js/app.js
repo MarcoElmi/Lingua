@@ -7,7 +7,7 @@
   const LEVELS = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
   const SKILLS = ['vocab', 'grammar', 'reading', 'listening'];
   const STORE_KEY = 'lingua.state.v1';
-  const APP_VERSION = '1.4.0';
+  const APP_VERSION = '1.5.0';
   const MINUTES = { 5: { cards: 6, gaps: 4, quiz: 4, goal: 40, newMax: 5 }, 10: { cards: 10, gaps: 6, quiz: 6, goal: 70, newMax: 8 }, 15: { cards: 15, gaps: 8, quiz: 8, goal: 100, newMax: 12 } };
 
   const $ = (s, el = document) => el.querySelector(s);
@@ -524,7 +524,7 @@
 
   /* ---------- Ansichten ---------- */
   const ROADMAP = [
-    ['📻', 'Radio'], ['📐', 'Grammaire'], ['🔤', 'Conjugaison'], ['✍️', 'Écriture']
+    ['📻', 'Radio'], ['📐', 'Grammaire'], ['✍️', 'Écriture'], ['📌', 'Phrases à retenir'], ['🗨️', 'Parler librement']
   ];
   function viewHome() {
     const p = prof(); const m = mission(); const doneN = m.done.filter(Boolean).length;
@@ -557,6 +557,9 @@
       </div>
       <div class="section-title">S’entraîner</div>
       <div class="grid">
+        <button class="tile" data-act="go" data-arg="shadowing"><span class="ic">🎙️</span><b>Shadowing</b><small>Répéter et s’enregistrer</small></button>
+        <button class="tile" data-act="go" data-arg="nombres"><span class="ic">🔢</span><b>Nombres</b><small>Prix, heures, téléphone</small></button>
+        <button class="tile" data-act="go" data-arg="conjugaison"><span class="ic">🔤</span><b>Conjugaison</b><small>52 verbes, 6 temps</small></button>
         <button class="tile" data-act="go" data-arg="dictee"><span class="ic">🎧</span><b>Dictée</b><small>Écouter et écrire</small></button>
         <button class="tile" data-act="go" data-arg="puzzle"><span class="ic">🧩</span><b>Phrases puzzle</b><small>Remettre en ordre</small></button>
         <button class="tile" data-act="go" data-arg="prononciation"><span class="ic">🗣️</span><b>Prononciation</b><small>Lire à voix haute</small></button>
@@ -989,6 +992,290 @@
   }
 
   /* ======================================================================
+     v1.5 – Konjugation, Zahlen, Shadowing
+     ====================================================================== */
+  const ACCENTS = ['é', 'è', 'ê', 'à', 'â', 'ç', 'î', 'ô', 'û', 'ù', 'ë', 'ï', 'œ'];
+  function accentBar(target) {
+    return `<div class="accents">${ACCENTS.map((c) => `<button class="pz" data-act="accent" data-arg="${target}|${c}">${c}</button>`).join('')}</div>`;
+  }
+  function insertAccent(arg) {
+    const [id, c] = arg.split('|'); const el = document.getElementById(id); if (!el) return;
+    const a = el.selectionStart || el.value.length, b = el.selectionEnd || el.value.length;
+    el.value = el.value.slice(0, a) + c + el.value.slice(b); el.focus(); el.setSelectionRange(a + 1, a + 1);
+  }
+  const normAns = (s) => s.toLowerCase().replace(/[’`´ʼ]/g, '\'').replace(/\s+/g, ' ').trim();
+  const joinPron = (p, f) => (/’$/.test(p) ? p + f : p + ' ' + f);
+
+  /* ---------- Konjugation ---------- */
+  function conj() { return pack().conj; }
+  function conjTenses() { const L = Math.max(lvlIdx(prof().levels.grammar), lvlIdx('A2')); return conj().tenses.filter((t) => lvlIdx(t.l) <= L + 1); }
+  function conjBox(k) { const p = prof(); p.conj = p.conj || {}; return p.conj[k] || 0; }
+  function viewConj() {
+    if (!conj()) { $('#app').innerHTML = '<div class="card">Pas encore disponible pour cette langue.</div>'; return; }
+    const ts = conjTenses(); ui.cTense = ui.cTense || 'auto';
+    const vs = conj().verbs; ui.cVerb = ui.cVerb || 'aller';
+    const v = vs.find((x) => x.inf === ui.cVerb) || vs[0];
+    $('#app').innerHTML = `<div class="card"><h1>🔤 Conjugaison</h1>
+        <p class="small muted">${vs.length} verbes fréquents. Les formes difficiles reviennent plus souvent.</p>
+        <div class="field"><label class="small">Temps</label><div class="chips">
+          <button class="chipbtn ${ui.cTense === 'auto' ? 'on' : ''}" data-act="cTense" data-arg="auto">🎲 Mélange</button>
+          ${ts.map((t) => `<button class="chipbtn ${ui.cTense === t.id ? 'on' : ''}" data-act="cTense" data-arg="${t.id}">${t.name}</button>`).join('')}</div></div>
+        <button class="btn primary block" data-act="conjStart">S’entraîner (10 formes)</button></div>
+      <div class="card"><h2>📋 Tableaux</h2>
+        <select id="cVerb" class="input">${vs.map((x) => `<option value="${esc(x.inf)}" ${x.inf === v.inf ? 'selected' : ''}>${esc(x.inf)} – ${esc(x.de)}</option>`).join('')}</select>
+        <div class="ctables">${conj().tenses.map((t) => `<div class="ctab"><b>${t.name}</b>${conj().conjugate(v, t.id).map((x) => `<div>${esc(joinPron(x.pron, x.form))}</div>`).join('')}</div>`).join('')}</div>
+        ${v.aux === 'être' ? '<p class="small muted">Passé composé avec « être » : le participe s’accorde avec le sujet.</p>' : ''}</div>`;
+    const sel = $('#cVerb'); if (sel) sel.addEventListener('change', () => { ui.cVerb = sel.value; viewConj(); });
+  }
+  function conjStart() {
+    const L = Math.max(lvlIdx(prof().levels.grammar), lvlIdx('A2'));
+    const tenses = ui.cTense === 'auto' ? conjTenses() : conj().tenses.filter((t) => t.id === ui.cTense);
+    const verbs = conj().verbs.filter((v) => lvlIdx(v.l) <= L + 1);
+    const cands = [];
+    verbs.forEach((v) => tenses.forEach((t) => cands.push({ v, t, id: v.inf + '|' + t.id, l: v.l })));
+    const picked = weightedSample(cands, (c) => (6 - conjBox(c.id)) * (lvlIdx(c.l) <= L ? 2 : 1), 10);
+    const items = picked.map((c) => { const i = Math.floor(Math.random() * 6); const f = conj().conjugate(c.v, c.t.id)[i]; return Object.assign({}, c, { i, f }); });
+    session = { kind: 'conj', items, k: 0, xp: 0, good: 0, phase: 'ask' };
+    document.body.classList.add('in-session'); renderConj();
+  }
+  function renderConj() {
+    const s = session; const it = s.items[s.k]; const pct = Math.round((s.k / s.items.length) * 100);
+    let html = `<div class="ex-head"><button class="x" data-act="quit" aria-label="Quitter">✕</button><div class="bar"><i style="width:${pct}%"></i></div><span class="small muted">${s.k + 1}/${s.items.length}</span></div>
+      <div class="card"><span class="chip">${it.t.name}</span>
+        <div class="prompt" style="margin-top:10px">${esc(it.v.inf)} <span class="small muted">(${esc(it.v.de)})</span></div>
+        <div class="conj-row"><span class="pron">${esc(it.f.pron)}</span>
+          <input id="conjInput" class="input" autocomplete="off" autocapitalize="off" spellcheck="false" ${s.phase !== 'ask' ? 'disabled' : ''} value="${s.phase !== 'ask' ? esc(s.mine) : ''}" placeholder="…"></div>
+        ${s.phase === 'ask' ? accentBar('conjInput') + `<button class="btn primary block" style="margin-top:10px" data-act="conjCheck">Vérifier</button>` : ''}`;
+    if (s.phase !== 'ask') {
+      const ok = s.res === 'ok';
+      html += `<div class="feedback ${ok ? 'ok' : s.res === 'acc' ? '' : 'ko'}" style="${s.res === 'acc' ? 'background:var(--accent-soft)' : ''}">
+          <div class="title">${ok ? '✓ ' + U('correct') : s.res === 'acc' ? '≈ Presque : attention aux accents' : '✗ ' + U('wrong')}</div>
+          <div><b>${esc(joinPron(it.f.pron, it.f.form))}</b></div>${audioBtns(joinPron(it.f.pron, it.f.form).replace(/\(e\)|\(s\)/g, ''))}
+          <details class="small"><summary>Tout le ${esc(it.t.name)}</summary>${conj().conjugate(it.v, it.t.id).map((x) => `<div>${esc(joinPron(x.pron, x.form))}</div>`).join('')}</details></div>
+        <button class="btn primary block" style="margin-top:12px" data-act="conjNext">${s.k + 1 < s.items.length ? U('continue') : U('finish')}</button>`;
+    }
+    $('#app').innerHTML = html + '</div>';
+    const inp = $('#conjInput');
+    if (inp && s.phase === 'ask') { inp.focus(); inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); conjCheck(); } }); }
+  }
+  function conjCheck() {
+    const s = session; const it = s.items[s.k];
+    let mine = normAns($('#conjInput').value || '');
+    if (!mine) { toast('Écris d’abord la forme.'); return; }
+    mine = mine.replace(/^(que |qu'|qu’)/, '').replace(/^(je |j'|tu |il |elle |on |nous |vous |ils |elles )/, '');
+    const acc = it.f.accept.map(normAns);
+    s.res = acc.includes(mine) ? 'ok' : acc.some((a) => stripAcc(a) === stripAcc(mine)) ? 'acc' : 'ko';
+    s.mine = mine;
+    const p = prof(); p.conj = p.conj || {};
+    if (s.res === 'ok') { s.good++; s.xp += 4; p.conj[it.id] = Math.min(5, conjBox(it.id) + 1); }
+    else { s.xp += 1; p.conj[it.id] = 0; }
+    save(); s.phase = 'fb'; renderConj();
+  }
+  function conjNext() { const s = session; s.k++; s.phase = 'ask'; if (s.k < s.items.length) renderConj(); else finishSession(s.good, s.items.length, s.xp); }
+
+  /* ---------- Zahlen ---------- */
+  const rnd = (a, b) => a + Math.floor(Math.random() * (b - a + 1));
+  function numItem(type, variant) {
+    const N = pack().numbers; const w = (n) => N.words(n, variant); const L = lvlIdx(prof().levels.listening);
+    const pad2 = (n) => String(n).padStart(2, '0');
+    if (type === 'num') { const n = L <= 1 ? (Math.random() < 0.6 ? rnd(60, 99) : rnd(11, 59)) : L === 2 ? (Math.random() < 0.5 ? rnd(60, 99) : rnd(100, 999)) : rnd(100, 99999); return { label: 'Nombre', say: w(n), ans: String(n), check: 'digits' }; }
+    if (type === 'year') { const n = rnd(1950, 2035); return { label: 'Année', say: 'en ' + w(n), ans: String(n), check: 'digits' }; }
+    if (type === 'price') { const f = rnd(1, L <= 1 ? 99 : 450), c = rnd(0, 19) * 5; return { label: 'Prix (CHF)', say: (f === 1 ? 'un franc' : w(f) + ' francs') + (c ? ' ' + w(c) : ''), ans: f + '.' + pad2(c), check: 'price' }; }
+    if (type === 'phone') {
+      const d = '07' + rnd(5, 9) + ' ' + rnd(100, 999) + ' ' + pad2(rnd(0, 99)) + ' ' + pad2(rnd(0, 99));
+      const grp = d.split(' ').map((g) => (g[0] === '0' ? 'zéro ' + w(Number(g)) : w(Number(g))));
+      return { label: 'Numéro de téléphone', say: grp.join(', '), ans: d, check: 'digits' };
+    }
+    if (type === 'time') { const h = rnd(1, 23), m = Math.random() < 0.3 ? rnd(0, 3) * 15 : rnd(0, 59); return { label: 'Heure', say: (h === 1 ? 'une heure' : w(h) + ' heures') + (m ? ' ' + w(m) : ''), ans: h + ':' + pad2(m), check: 'time' }; }
+    if (type === 'date') {
+      const mo = rnd(0, 11), d = rnd(1, 28); const fmt = (dd, mm) => pad2(dd) + '.' + pad2(mm + 1) + '.';
+      const opts = [fmt(d, mo)]; const alts = [[(d + 9) % 28 + 1, mo], [d, (mo + 1) % 12], [d === 12 ? 2 : d === 13 ? 3 : d === 16 ? 6 : (d + 10) % 28 + 1, (mo + 11) % 12]];
+      alts.forEach(([a, b]) => { const x = fmt(a, b); if (!opts.includes(x)) opts.push(x); });
+      return { label: 'Date', say: 'le ' + (d === 1 ? 'premier' : w(d)) + ' ' + N.months[mo], ans: opts[0], options: opts, check: 'mc' };
+    }
+    // Lesen: richtige Schreibweise wählen
+    const n = rnd(70, 99); const v = Math.random() < 0.5 ? 'ch' : 'fr'; const other = v === 'ch' ? 'fr' : 'ch';
+    const opts = [N.words(n, v), N.words(n, other), N.words(n - 10 < 70 ? n + 10 : n - 10, v)].filter((x, i, a) => a.indexOf(x) === i);
+    return { label: 'Lecture', q: `Comment dit-on <b>${n}</b> ${v === 'ch' ? 'en Suisse romande' : 'en France'} ?`, ans: opts[0], options: opts, check: 'mc', read: true, say: opts[0] };
+  }
+  function viewNumbers() {
+    const block = needAudio('🔢 Nombres'); if (block) { $('#app').innerHTML = block; return; }
+    ui.nVar = ui.nVar || 'mix';
+    $('#app').innerHTML = `<div class="card"><h1>🔢 Nombres</h1>
+      <p class="small muted">Téléphones, prix, heures, dates : écoute et écris en chiffres.</p>
+      <div class="field"><label class="small">Variante</label>${['mix', 'ch', 'fr'].map((k) => `<button class="chipbtn ${ui.nVar === k ? 'on' : ''}" data-act="nVar" data-arg="${k}">${{ mix: '🎲 Les deux', ch: '🇨🇭 septante, huitante, nonante', fr: '🇫🇷 soixante-dix, quatre-vingts' }[k]}</button>`).join(' ')}</div>
+      <button class="btn primary block" data-act="numStart">Commencer (10 exercices)</button></div>`;
+  }
+  function numStart() {
+    const types = ['num', 'num', 'price', 'price', 'phone', 'time', 'time', 'date', 'year', 'read'];
+    const items = shuffle(types).map((t) => { const v = ui.nVar === 'mix' ? (Math.random() < 0.5 ? 'ch' : 'fr') : ui.nVar; return Object.assign(numItem(t, v), { variant: v }); });
+    session = { kind: 'num', items, k: 0, xp: 0, good: 0, phase: 'ask' };
+    document.body.classList.add('in-session'); renderNum(true);
+  }
+  function renderNum(play) {
+    const s = session; const it = s.items[s.k]; const pct = Math.round((s.k / s.items.length) * 100);
+    let html = `<div class="ex-head"><button class="x" data-act="quit" aria-label="Quitter">✕</button><div class="bar"><i style="width:${pct}%"></i></div><span class="small muted">${s.k + 1}/${s.items.length}</span></div>
+      <div class="card"><span class="chip">${it.label}</span>`;
+    if (it.read) html += `<div class="prompt" style="margin-top:10px">${it.q}</div>`;
+    else html += `<p class="small muted" style="margin-top:8px">Écoute et écris ${it.check === 'mc' ? '– choisis la bonne réponse' : 'en chiffres'}.</p>${audioBtns(it.say)}`;
+    if (it.check === 'mc') {
+      if (!it.sh) it.sh = shuffle(it.options);
+      html += `<div class="opts">${it.sh.map((o, k) => `<button class="opt ${s.phase !== 'ask' ? (o === it.ans ? 'ok' : k === s.pick ? 'ko' : '') : ''}" data-act="numPick" data-arg="${k}" ${s.phase !== 'ask' ? 'disabled' : ''}>${esc(o)}</button>`).join('')}</div>`;
+    } else if (s.phase === 'ask') {
+      html += `<input id="numInput" class="input big-input" inputmode="decimal" autocomplete="off" placeholder="${it.check === 'time' ? '14:30' : it.check === 'price' ? '12.50' : '…'}">
+        <button class="btn primary block" style="margin-top:10px" data-act="numCheck">Vérifier</button>`;
+    }
+    if (s.phase !== 'ask') {
+      html += `<div class="feedback ${s.ok ? 'ok' : 'ko'}"><div class="title">${s.ok ? '✓ ' + U('correct') : '✗ Réponse : ' + esc(it.ans)}</div>
+        ${s.mine ? `<div class="small muted">Ta réponse : ${esc(s.mine)}</div>` : ''}
+        <div class="small">${it.read ? '' : 'On a dit : '}<i>${esc(it.say)}</i> ${it.variant === 'ch' ? '🇨🇭' : '🇫🇷'}</div>${it.read ? '' : ''}</div>
+        <button class="btn primary block" style="margin-top:12px" data-act="numNext">${s.k + 1 < s.items.length ? U('continue') : U('finish')}</button>`;
+    }
+    $('#app').innerHTML = html + '</div>';
+    const inp = $('#numInput'); if (inp) inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); numCheck(); } });
+    if (play && !it.read) setTimeout(() => speak(it.say, false, true), 300);
+  }
+  function numCompare(it, v) {
+    const digits = (x) => x.replace(/\D/g, '');
+    if (it.check === 'digits') return digits(v) === digits(it.ans) && digits(v).length > 0;
+    if (it.check === 'price') {
+      const toC = (x) => { x = x.toLowerCase().replace(/chf|fr\.?|francs?/g, '').trim(); const m = x.match(/^(\d+)(?:\D+(\d{1,2}))?/); if (!m) return -1; let c = m[2] ? Number(m[2].length === 1 ? m[2] + '0' : m[2]) : 0; return Number(m[1]) * 100 + c; };
+      return toC(v) === toC(it.ans);
+    }
+    if (it.check === 'time') {
+      const tm = (x) => { const m = x.match(/(\d{1,2})\D*(\d{2})?/); return m ? Number(m[1]) * 60 + Number(m[2] || 0) : -1; };
+      return tm(v) === tm(it.ans);
+    }
+    return false;
+  }
+  function numCheck() {
+    const s = session; const it = s.items[s.k]; const v = ($('#numInput').value || '').trim();
+    if (!v) { toast('Écris d’abord ta réponse.'); return; }
+    s.mine = v; s.ok = numCompare(it, v); s.phase = 'fb';
+    if (s.ok) { s.good++; s.xp += 4; } else s.xp += 1;
+    renderNum(false);
+  }
+  function numPick(k) {
+    const s = session; const it = s.items[s.k]; s.pick = Number(k); s.mine = ''; s.ok = it.sh[s.pick] === it.ans; s.phase = 'fb';
+    if (s.ok) { s.good++; s.xp += 4; } else s.xp += 1;
+    renderNum(false); if (it.read) speak(it.ans, false, true);
+  }
+  function numNext() { const s = session; s.k++; s.phase = 'ask'; if (s.k < s.items.length) renderNum(true); else finishSession(s.good, s.items.length, s.xp); }
+
+  /* ---------- Shadowing ---------- */
+  function speakP(text, factor) {
+    return new Promise((resolve) => {
+      if (!audioOn() || !voice || !('speechSynthesis' in window)) { resolve(); return; }
+      const words = text.split(/\s+/).length; let done = false; const fin = () => { if (!done) { done = true; resolve(); } };
+      try {
+        speechSynthesis.cancel();
+        const u = new SpeechSynthesisUtterance(text); u.lang = voice.lang; u.voice = voice; u.rate = state.settings.rate * (factor || 1);
+        u.onend = fin; u.onerror = fin; speechSynthesis.speak(u);
+      } catch (e) { fin(); }
+      setTimeout(fin, (words * 520) / (factor || 1) + 2500);
+    });
+  }
+  function splitChunks(text) {
+    const out = [];
+    text.split(/\n+/).forEach((para) => para.split(/(?<=[.!?])\s+/).forEach((sent) => {
+      sent = sent.trim(); if (!sent) return;
+      if (sent.split(/\s+/).length <= 14) { out.push(sent); return; }
+      let cur = '';
+      sent.split(/(?<=,)\s+/).forEach((part) => { if ((cur + ' ' + part).trim().split(/\s+/).length > 12 && cur) { out.push(cur.trim()); cur = part; } else cur = (cur + ' ' + part).trim(); });
+      if (cur) out.push(cur.trim());
+    }));
+    return out.map((x) => x.replace(/[«»]/g, '').replace(/\s+/g, ' ').trim()).filter((x) => /[a-zà-ÿ]/i.test(x));
+  }
+  const canRecord = () => !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia && window.MediaRecorder);
+  function viewShadow() {
+    const block = needAudio('🎙️ Shadowing'); if (block) { $('#app').innerHTML = block; return; }
+    ui.shTab = ui.shTab || 'sons';
+    const L = lvlIdx(prof().levels.listening);
+    const texts = packTexts().filter((t) => Math.abs(lvlIdx(t.l) - L) <= 1);
+    let list = '';
+    if (ui.shTab === 'sons') list = (pack().sounds || []).map((x) => `<button class="tile" data-act="shStart" data-arg="son:${x.id}"><b>${esc(x.t)}</b><small>${esc(x.de)}</small></button>`).join('');
+    if (ui.shTab === 'textes') list = texts.map((t) => `<button class="tile" data-act="shStart" data-arg="txt:${t.id}"><b>${esc(t.title)}</b><small>${t.l} · ${esc(t.topic)}</small></button>`).join('');
+    if (ui.shTab === 'dialogues') list = packDialogs().map((d) => `<button class="tile" data-act="shStart" data-arg="dlg:${d.id}"><span class="ic">${d.ic}</span><b>${esc(d.t)}</b><small>${d.l}</small></button>`).join('');
+    $('#app').innerHTML = `<div class="card"><h1>🎙️ Shadowing</h1>
+        <p class="small muted">Écoute un passage, répète-le (en écho ou en même temps), enregistre-toi et compare ta voix au modèle.</p>
+        ${canRecord() ? '' : '<p class="small"><b>L’enregistrement n’est pas disponible ici</b> – tu peux quand même écouter et répéter.</p>'}
+        <div class="chips">${[['sons', '🔤 Sons difficiles'], ['textes', '📖 Textes'], ['dialogues', '💬 Dialogues']].map(([k, l]) => `<button class="chipbtn ${ui.shTab === k ? 'on' : ''}" data-act="shTab" data-arg="${k}">${l}</button>`).join('')}</div></div>
+      <div class="grid">${list}</div>
+      <details class="small muted"><summary>So funktioniert Shadowing</summary><p>1. Abschnitt anhören. 2. «Écho»: nach dem Vorbild nachsprechen – oder «Simultané»: gleichzeitig mitsprechen. 3. Mit «Comparer» Vorbild und eigene Aufnahme direkt hintereinander hören. Erst langsam (🐢), dann normal. Später den Text ausblenden (👁️).</p></details>`;
+  }
+  function shStart(arg) {
+    const [kind, id] = arg.split(':'); let chunks = [], title = '';
+    if (kind === 'son') { const x = (pack().sounds || []).find((y) => y.id === id); chunks = x.items.slice(); title = x.t; }
+    if (kind === 'txt') { const t = packTexts().find((y) => y.id === id); chunks = splitChunks(t.text).slice(0, 10); title = t.title; }
+    if (kind === 'dlg') { const d = packDialogs().find((y) => y.id === id); d.steps.forEach((st) => { chunks.push(st.p); chunks.push(st.a); }); title = d.t; }
+    session = { kind: 'shadow', title, chunks, k: 0, xp: 0, good: 0, speed: 0.85, show: true, rec: null, recUrl: null, busy: '' };
+    document.body.classList.add('in-session'); renderShadow();
+  }
+  function renderShadow() {
+    const s = session; const c = s.chunks[s.k]; const pct = Math.round((s.k / s.chunks.length) * 100); const can = canRecord();
+    $('#app').innerHTML = `<div class="ex-head"><button class="x" data-act="quit" aria-label="Quitter">✕</button><div class="bar"><i style="width:${pct}%"></i></div><span class="small muted">${s.k + 1}/${s.chunks.length}</span></div>
+      <div class="card"><span class="chip">🎙️ ${esc(s.title)}</span>
+        <div class="shadow-text ${s.show ? '' : 'hidden'}">${s.show ? esc(c) : '• • •'}</div>
+        <div class="row between small"><div class="chips">${[[0.7, '🐢 0.7'], [0.85, '0.85'], [1, '1.0']].map(([v, l]) => `<button class="chipbtn ${s.speed === v ? 'on' : ''}" data-act="shSpeed" data-arg="${v}">${l}</button>`).join('')}</div>
+          <button class="chipbtn" data-act="shToggle">${s.show ? '🙈 Cacher' : '👁️ Montrer'}</button></div>
+        <div class="shadow-btns">
+          <button class="btn" data-act="shListen" ${s.busy ? 'disabled' : ''}>▶ Écouter</button>
+          ${can ? `<button class="btn primary" data-act="shEcho" ${s.busy ? 'disabled' : ''}>🔁 Écho</button><button class="btn primary" data-act="shSimul" ${s.busy ? 'disabled' : ''}>🎙️ Simultané</button>` : '<button class="btn primary" data-act="shListen">🔁 Encore</button>'}
+        </div>
+        ${s.busy ? `<div class="recbar">${s.busy === 'rec' ? '⏺️ Enregistrement… parle maintenant' : '🔊 Écoute…'} ${s.busy === 'rec' ? '<button class="btn small" data-act="shStop">⏹ Stop</button>' : ''}</div>` : ''}
+        ${s.recUrl && !s.busy ? `<div class="shadow-btns"><button class="btn" data-act="shMine">▶ Ma voix</button><button class="btn" data-act="shCompare">⇄ Comparer</button></div>` : ''}
+        <p class="small muted" style="margin:12px 0 6px">Comment c’était ?</p>
+        <div class="btnrow">${[['0', '🔁 Encore', ''], ['1', '👌 Ça va', ''], ['2', '👍 Bien', ' primary']].map(([v, l, c]) => `<button class="btn small${c}" data-act="shRate" data-arg="${v}" ${s.busy ? 'disabled' : ''}>${l}</button>`).join('')}</div>
+      </div>`;
+  }
+  async function getMic() {
+    const s = session; if (s.stream) return s.stream;
+    s.stream = await navigator.mediaDevices.getUserMedia({ audio: true }); return s.stream;
+  }
+  async function recordFor(maxMs, during) {
+    const s = session; let stream;
+    try { stream = await getMic(); } catch (e) { toast('Micro refusé ou indisponible.'); s.busy = ''; renderShadow(); return; }
+    const chunks = []; const mr = new MediaRecorder(stream); s.rec = mr;
+    mr.ondataavailable = (e) => { if (e.data && e.data.size) chunks.push(e.data); };
+    const stopped = new Promise((r) => { mr.onstop = r; });
+    mr.start(); s.busy = 'rec'; renderShadow();
+    const timer = setTimeout(() => { if (mr.state !== 'inactive') mr.stop(); }, maxMs);
+    if (during) { await during(); setTimeout(() => { if (mr.state !== 'inactive') mr.stop(); }, 700); }
+    await stopped; clearTimeout(timer);
+    if (session !== s) return;
+    if (s.recUrl) URL.revokeObjectURL(s.recUrl);
+    s.recUrl = URL.createObjectURL(new Blob(chunks, { type: mr.mimeType || 'audio/webm' }));
+    s.busy = ''; s.rec = null; renderShadow();
+  }
+  function shDur(text, speed) { return Math.round((text.split(/\s+/).length * 450) / speed * 1.4 + 1500); }
+  async function shListen() { const s = session; s.busy = 'play'; renderShadow(); await speakP(s.chunks[s.k], s.speed); if (session === s) { s.busy = ''; renderShadow(); } }
+  async function shEcho() {
+    const s = session; const c = s.chunks[s.k];
+    s.busy = 'play'; renderShadow(); await speakP(c, s.speed); if (session !== s) return;
+    await recordFor(shDur(c, s.speed));
+  }
+  async function shSimul() { const s = session; const c = s.chunks[s.k]; await recordFor(shDur(c, s.speed) + 4000, () => speakP(c, s.speed)); }
+  function shStop() { const s = session; if (s.rec && s.rec.state !== 'inactive') s.rec.stop(); }
+  function playUrl(url) { return new Promise((r) => { const a = new Audio(url); a.onended = r; a.onerror = r; a.play().catch(r); }); }
+  async function shMine() { const s = session; if (s.recUrl) await playUrl(s.recUrl); }
+  async function shCompare() { const s = session; s.busy = 'play'; renderShadow(); await speakP(s.chunks[s.k], s.speed); if (session !== s) return; await playUrl(s.recUrl); s.busy = ''; renderShadow(); }
+  function shRate(r) {
+    const s = session; r = Number(r);
+    if (r === 0) { toast('On recommence 🔁'); return; }
+    s.xp += r === 2 ? 4 : 2; if (r === 2) s.good++;
+    if (s.recUrl) { URL.revokeObjectURL(s.recUrl); s.recUrl = null; }
+    s.k++;
+    if (s.k < s.chunks.length) renderShadow();
+    else { endMedia(); finishSession(s.good, s.chunks.length, s.xp + 5); }
+  }
+  function endMedia() {
+    const s = session; if (!s) return;
+    try { if (s.rec && s.rec.state !== 'inactive') s.rec.stop(); } catch (e) { /* */ }
+    if (s.stream) s.stream.getTracks().forEach((t) => t.stop());
+    if (s.recUrl) URL.revokeObjectURL(s.recUrl);
+  }
+
+  /* ======================================================================
      KI-Module (Google Gemini) – Textverständnis, KI-Lückentexte, Dialogpartner
      Der API-Schlüssel liegt nur auf diesem Gerät (localStorage), nie im Backup.
      ====================================================================== */
@@ -1414,7 +1701,7 @@ Give feedback on the LEARNER's French only: "bilan_fr" = 2–3 encouraging, conc
   }
   function route() {
     const h = (location.hash || '#home').slice(1);
-    if (session && h !== 'run') { session = null; test = null; document.body.classList.remove('in-session'); }
+    if (session && h !== 'run') { endMedia(); session = null; test = null; document.body.classList.remove('in-session'); }
     if ('speechSynthesis' in window) speechSynthesis.cancel();
     document.querySelectorAll('[data-nav]').forEach((a) => a.classList.toggle('on', a.dataset.nav === h || (h === 'home' && a.dataset.nav === 'home')));
     const cfg = MINUTES[state.settings.minutes];
@@ -1433,6 +1720,9 @@ Give feedback on the LEARNER's French only: "bilan_fr" = 2–3 encouraging, conc
       case 'prononciation': startPron(); break;
       case 'fauxamis': startFauxAmis(); break;
       case 'suisse': startSuisse(); break;
+      case 'conjugaison': viewConj(); break;
+      case 'nombres': viewNumbers(); break;
+      case 'shadowing': viewShadow(); break;
       case 'vocab': startVocab(); break;
       case 'gaps': startMC(U('gaps'), gapItems(cfg.gaps + 2)); break;
       case 'quiz': startMC(U('quiz'), quizItems(cfg.quiz + 2)); break;
@@ -1446,7 +1736,7 @@ Give feedback on the LEARNER's French only: "bilan_fr" = 2–3 encouraging, conc
   const actions = {
     go: (a) => { if (location.hash === '#' + a) route(); else location.hash = '#' + a; },
     pick: pickMC, nextMC,
-    quit: () => { session = null; test = null; document.body.classList.remove('in-session'); goHome(); },
+    quit: () => { endMedia(); session = null; test = null; document.body.classList.remove('in-session'); goHome(); },
     goHome: () => goHome(),
     reveal: () => { session.shown = true; renderCard(); const w = session.queue[session.i].w; if (session.queue[session.i].dir === 'de') speak(w.fr.replace(/\s*\((m|f)\)/, '')); },
     rate: rateCard,
@@ -1470,13 +1760,17 @@ Give feedback on the LEARNER's French only: "bilan_fr" = 2–3 encouraging, conc
     rTopic: (k) => { ui.rTopic = k; viewReading(); }, rType: (k) => { ui.rType = k; viewReading(); }, gFocus: (k) => { ui.gFocus = k; viewAiGaps(); },
     textStart: (id) => startText(id), dlgStart: (id) => startGuided(id), phoneStart: (id) => startGuided(id, { phone: true }),
     dlgPick, dlgWrite, dlgRate, dlgNext, dlgFinish, dlgShowText: () => { session.showText = true; renderGuided(false); },
+    accent: insertAccent, cTense: (k) => { ui.cTense = k; viewConj(); }, conjStart, conjCheck, conjNext,
+    nVar: (k) => { ui.nVar = k; viewNumbers(); }, numStart, numCheck, numPick, numNext,
+    shTab: (k) => { ui.shTab = k; viewShadow(); }, shStart, shListen, shEcho, shSimul, shStop, shMine, shCompare, shRate,
+    shSpeed: (v) => { session.speed = Number(v); renderShadow(); }, shToggle: () => { session.show = !session.show; renderShadow(); },
     dictCheck, dictNext, pzAdd, pzBack, pzCheck, pzNext, pronSpeak, pronNext,
     readGen, readCached, readQuestions, gapGen, gapCached, chatStart, chatSend, chatEnd, dictate, aiSaveKey, aiPrepare,
     chatHint: () => { session.showHint = true; renderChat(); },
     chatRetry: () => { const s = session; s.error = ''; const last = s.msgs[s.msgs.length - 1]; chatTurn(last && last.role === 'me' ? last.text : '[START]'); },
     addWord: (id, el) => { const w = pendingWords[id]; if (w && addCustomWord(w.fr, w.de, w.ex)) { el.disabled = true; el.textContent = '✓ Ajouté'; } },
     aiDelKey: () => { try { localStorage.removeItem(AI_KEY); } catch (e) { /* */ } toast('Clé supprimée.'); viewSettings(); },
-    applyUpdate: () => { if (waitingSW) waitingSW.postMessage('SKIP_WAITING'); else location.reload(); }
+    applyUpdate: () => { updateRequested = true; if (waitingSW) waitingSW.postMessage('SKIP_WAITING'); else location.reload(); }
   };
   document.addEventListener('click', (e) => {
     const el = e.target.closest('[data-act]'); if (!el) return;
@@ -1488,7 +1782,7 @@ Give feedback on the LEARNER's French only: "bilan_fr" = 2–3 encouraging, conc
   function applyTheme() { document.documentElement.dataset.theme = state.settings.theme; }
 
   /* ---------- Offline (Service Worker) ---------- */
-  let waitingSW = null;
+  let waitingSW = null; let updateRequested = false;
   function registerSW() {
     if (!('serviceWorker' in navigator) || !/^https:|^http:\/\/localhost/.test(location.href)) return;
     try {
@@ -1501,7 +1795,7 @@ Give feedback on the LEARNER's French only: "bilan_fr" = 2–3 encouraging, conc
         });
       }).catch(() => {});
       let reloaded = false;
-      navigator.serviceWorker.addEventListener('controllerchange', () => { if (!reloaded) { reloaded = true; location.reload(); } });
+      navigator.serviceWorker.addEventListener('controllerchange', () => { if (updateRequested && !reloaded) { reloaded = true; location.reload(); } }); // nur nach Klick auf «Recharger»
     } catch (e) { /* z. B. in einer Sandbox nicht erlaubt */ }
   }
 

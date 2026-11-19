@@ -189,3 +189,18 @@ button.pill{cursor:pointer;color:var(--ink)}
 .pz-end{font-weight:700;padding:0 2px}
 .mic.rec{animation:pulse 1s infinite}
 @keyframes pulse{50%{opacity:.6}}
+/* v1.5 */
+.accents{display:flex;flex-wrap:wrap;gap:4px;margin-top:8px}
+.accents .pz{padding:6px 10px;min-width:36px}
+.conj-row{display:flex;align-items:center;gap:8px;margin-top:10px}
+.conj-row .pron{font-weight:600;white-space:nowrap}
+.conj-row .input{font-size:1.1rem}
+.ctables{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px;font-size:.88rem}
+.ctab{background:var(--accent-soft);border-radius:10px;padding:8px 10px}
+.ctab b{display:block;margin-bottom:4px;color:var(--accent)}
+.big-input{font-size:1.4rem;text-align:center;letter-spacing:.05em;margin-top:10px}
+.shadow-text{font-size:1.3rem;font-weight:600;line-height:1.45;margin:12px 0;min-height:2.4em}
+.shadow-text.hidden{color:var(--muted);letter-spacing:.3em}
+.shadow-btns{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:12px}
+.shadow-btns .btn{padding:10px 6px;font-size:.92rem}
+.recbar{margin-top:10px;padding:10px;border-radius:12px;background:var(--bad-soft);display:flex;justify-content:space-between;align-items:center;animation:pulse 1.2s infinite}
