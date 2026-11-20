@@ -7,7 +7,7 @@
   const LEVELS = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
   const SKILLS = ['vocab', 'grammar', 'reading', 'listening'];
   const STORE_KEY = 'lingua.state.v1';
-  const APP_VERSION = '1.5.0';
+  const APP_VERSION = '2.0.0';
   const MINUTES = { 5: { cards: 6, gaps: 4, quiz: 4, goal: 40, newMax: 5 }, 10: { cards: 10, gaps: 6, quiz: 6, goal: 70, newMax: 8 }, 15: { cards: 15, gaps: 8, quiz: 8, goal: 100, newMax: 12 } };
 
   const $ = (s, el = document) => el.querySelector(s);
@@ -44,7 +44,7 @@
   }
   function defaultProfile() {
     return {
-      levels: { vocab: 'B1', grammar: 'B1', reading: 'B1', listening: 'B1' }, tested: false,
+      levels: (function () { const d = (window.LINGUA_PACKS[state && state.lang] || window.LINGUA_PACKS.fr).meta.defaultLevel || 'B1'; return { vocab: d, grammar: d, reading: d, listening: d }; })(), tested: false,
       tests: [], srs: {}, seen: {}, errors: {}, newByDay: {},
       mission: { date: null, done: [false, false, false], rewarded: false },
       stats: { answered: 0, correct: 0 }
@@ -70,7 +70,76 @@
   /* ---------- Sprachpaket ---------- */
   const packs = window.LINGUA_PACKS || {};
   function pack() { return packs[state.lang] || packs.fr; }
-  function U(k) { return (pack().ui && pack().ui[k]) || k; }
+  function U(k) { const b = (packs.fr && packs.fr.ui) || {}; return b[k] || k; }
+  const META = () => pack().meta;
+
+  /* ---------- Oberflächen-Übersetzung ----------
+     Die Oberfläche ist im Code auf Französisch geschrieben (Basis). Ein MutationObserver übersetzt
+     jeden angezeigten Text in die Lernsprache (z. B. Italienisch) oder – mit «DE» – auf Deutsch.
+     Wörterbücher: window.LINGUA_I18N[sprache] = { 'französischer Text': 'Übersetzung', 'Muster {1}': '… {1}' } */
+  const I18N = window.LINGUA_I18N || {};
+  const trCache = {};
+  function trLang() { if (state.settings.uiDe) return 'de'; const c = pack().meta.code; return c === 'fr' ? null : c; }
+  function trDict(lang) {
+    if (trCache[lang]) return trCache[lang];
+    const d = I18N[lang] || {}; const exact = new Map(); const pats = [];
+    Object.keys(d).forEach((k) => {
+      if (/\{\d\}/.test(k)) {
+        const order = [];
+        const src = k.split(/(\{\d\})/).map((part) => { const m = part.match(/^\{(\d)\}$/); if (m) { order.push(m[1]); return '([\\s\\S]+?)'; } return part.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }).join('');
+        pats.push({ re: new RegExp('^' + src + '$'), order, out: d[k] });
+      } else exact.set(k, d[k]);
+    });
+    return (trCache[lang] = { exact, pats });
+  }
+  function trString(str, lang) {
+    const t = str.trim(); if (!t) return null;
+    const D = trDict(lang); let out = null;
+    if (D.exact.has(t)) out = D.exact.get(t);
+    else for (const p of D.pats) { const m = t.match(p.re); if (m) { out = p.out; p.order.forEach((n, i) => { out = out.split('{' + n + '}').join(D.exact.get(m[i + 1].trim()) || m[i + 1]); }); break; } }
+    if (out === null) return null;
+    return str.match(/^\s*/)[0] + out + str.match(/\s*$/)[0];
+  }
+  function T(fr) { const l = trLang(); return (l && trString(fr, l)) || fr; }
+  const TR_ATTRS = ['placeholder', 'aria-label', 'title'];
+  function translateTree(root) {
+    if (!root) return;
+    const lang = trLang();
+    if (root.nodeType === 1 || root.nodeType === 9) {
+      const w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT); const nodes = [];
+      while (w.nextNode()) nodes.push(w.currentNode);
+      nodes.forEach((n) => {
+        const par = n.parentElement; if (!par || par.closest('[data-notr],script,style,textarea')) return;
+        if (n.__orig === undefined || n.nodeValue !== n.__tr) n.__orig = n.nodeValue;
+        const out = lang ? trString(n.__orig, lang) : null; const val = out === null ? n.__orig : out;
+        if (n.nodeValue !== val) n.nodeValue = val;
+        n.__tr = val;
+        if (lang && out === null && window.__trMiss && /[a-zà-ÿ]{2}/i.test(n.__orig)) window.__trMiss.add(n.__orig.trim());
+      });
+      const els = root.querySelectorAll ? root.querySelectorAll('[placeholder],[aria-label],[title]') : [];
+      els.forEach((el) => {
+        if (el.closest('[data-notr]')) return;
+        TR_ATTRS.forEach((a) => {
+          if (!el.hasAttribute(a)) return; const cur = el.getAttribute(a);
+          if (el['__o' + a] === undefined || cur !== el['__t' + a]) el['__o' + a] = cur;
+          const out = lang ? trString(el['__o' + a], lang) : null; const v = out === null ? el['__o' + a] : out;
+          if (cur !== v) el.setAttribute(a, v); el['__t' + a] = v;
+          if (lang && out === null && window.__trMiss && /[a-zà-ÿ]{2}/i.test(el['__o' + a])) window.__trMiss.add(el['__o' + a].trim());
+        });
+      });
+    }
+  }
+  let trBusy = false;
+  const trObs = new MutationObserver((muts) => {
+    if (trBusy) return; trBusy = true;
+    try {
+      const roots = new Set();
+      muts.forEach((m) => { if (m.type === 'characterData') roots.add(m.target.parentElement); else m.addedNodes.forEach((n) => roots.add(n.nodeType === 3 ? n.parentElement : n)); });
+      roots.forEach((r) => r && r.isConnected && translateTree(r));
+    } finally { trBusy = false; }
+  });
+  function retranslate() { trBusy = true; try { translateTree(document.body); } finally { trBusy = false; } document.title = 'Lingua · ' + pack().meta.name; document.documentElement.lang = pack().meta.code; }
+  const LANG_EN = () => META().english || 'French';
   const prepared = {};
   function P() {
     const code = pack().meta.code;
@@ -173,6 +242,7 @@
     $('#streakPill').textContent = '🔥 ' + currentStreak();
     $('#xpPill').textContent = '⭐ ' + state.xp;
     $('#audioPill').textContent = audioOn() ? '🔊' : '🔇';
+    $('#dePill').classList.toggle('on', !!state.settings.uiDe);
     $('#brandName').textContent = 'Lingua · ' + P().meta.name;
   }
 
@@ -185,8 +255,8 @@
 
   /* ---------- Vokabeln (Spaced Repetition) ---------- */
   function srsCard(id) { return prof().srs[id]; }
-  function schedule(id, r) {
-    const s = prof().srs; const c = s[id] || (s[id] = { iv: 0, ef: 2.5, reps: 0, lapses: 0, due: today() });
+  function schedule(id, r, store) {
+    const s = store || prof().srs; const c = s[id] || (s[id] = { iv: 0, ef: 2.5, reps: 0, lapses: 0, due: today() });
     if (r === 0) { c.lapses++; c.reps = 0; c.iv = 0; c.ef = Math.max(1.3, c.ef - 0.2); }
     else {
       if (c.reps === 0) c.iv = r === 3 ? 3 : 1;
@@ -269,7 +339,8 @@
         <div class="title">${ok ? '✓ ' + U('correct') : '✗ ' + U('wrong')}</div>
         ${ok ? '' : `<div>${U('answerIs')} <b>${esc(it.answer)}</b></div>`}
         ${it.after ? `<div style="margin-top:6px">${it.after}</div>` : ''}
-        ${it.afterAudio ? audioBtns(it.afterAudio) : ''}
+        ${it.afterAudio ? audioBtns(it.afterAudio) + phraseBtn(it.afterAudio, 'exercice') : ''}
+        ${it.topic && !ok ? gramLink(it.topic) : ''}
         ${explainHtml(it.explain)}
       </div>
       <button class="btn primary block" style="margin-top:12px" data-act="nextMC">${s.i + 1 < s.items.length ? U('continue') : U('finish')}</button>`;
@@ -305,7 +376,7 @@
   function gapItems(n, list) {
     const src = list || pickItems(P().gaps, 'grammar', n, 'gap:');
     return src.map((g) => ({
-      key: 'gap:' + g.id, chip: g.l + ' · ' + g.t,
+      key: 'gap:' + g.id, chip: g.l + ' · ' + g.t, topic: g.t,
       prompt: esc(g.s).replace('___', '<span class="gap">…</span>'),
       options: g.o, answer: g.a, explain: { fr: g.fr, de: g.de },
       after: '<i>' + esc(g.s.replace('___', g.a)) + '</i>', afterAudio: g.s.replace('___', g.a)
@@ -433,7 +504,7 @@
     </div>`;
   }
   function testStart() {
-    test = { s: 0, level: 'B1', asked: new Set(), rec: [], results: {} };
+    test = { s: 0, level: META().testStart || 'B1', asked: new Set(), rec: [], results: {} };
     document.body.classList.add('in-session');
     testNext();
   }
@@ -479,24 +550,28 @@
     testSkillDone(prof().levels[SKILLS[test.s]]);
   }
   function testAnswer(item, ok) {
+    if (!test || test.lock) return; test.lock = true;   // Doppeltipp abfangen
     test.rec.push({ l: item.l, ok });
     const li = lvlIdx(test.level);
-    test.level = LEVELS[clamp(li + (ok ? 1 : -1), lvlIdx('A2'), lvlIdx('C1'))];
-    setTimeout(() => { if (test.rec.length >= TEST_PER_SKILL) testSkillDone(); else testNext(); }, 350);
+    const TL = META().testLevels || ['A2', 'B1', 'B2', 'C1'];
+    test.level = LEVELS[clamp(li + (ok ? 1 : -1), lvlIdx(TL[0]), lvlIdx(TL[TL.length - 1]))];
+    const t0 = test;
+    setTimeout(() => { if (test !== t0) return; test.lock = false; if (test.rec.length >= TEST_PER_SKILL) testSkillDone(); else testNext(); }, 350);
   }
   function estimate(rec) {
     let est = null;
-    for (const L of ['A2', 'B1', 'B2', 'C1']) {
+    const TL = META().testLevels || ['A2', 'B1', 'B2', 'C1'];
+    for (const L of TL) {
       const r = rec.filter((x) => x.l === L); if (!r.length) continue;
       const rate = r.filter((x) => x.ok).length / r.length;
       if (rate >= 0.5) est = L; else break;
     }
-    if (!est) est = rec.some((x) => x.ok) ? 'A2' : 'A1';
+    if (!est) est = TL[0] === 'A1' ? 'A1' : (rec.some((x) => x.ok) ? TL[0] : LEVELS[Math.max(0, lvlIdx(TL[0]) - 1)]);
     return est;
   }
   function testSkillDone(keep) {
     test.results[SKILLS[test.s]] = keep || estimate(test.rec);
-    test.s++; test.rec = []; test.level = 'B1';
+    test.s++; test.rec = []; test.level = META().testStart || 'B1';
     if (test.s < SKILLS.length) { testNext(); return; }
     // Ergebnis
     const res = test.results; const idx = SKILLS.map((s) => lvlIdx(res[s]));
@@ -524,8 +599,21 @@
 
   /* ---------- Ansichten ---------- */
   const ROADMAP = [
-    ['📻', 'Radio'], ['📐', 'Grammaire'], ['✍️', 'Écriture'], ['📌', 'Phrases à retenir'], ['🗨️', 'Parler librement']
+
   ];
+  function viewPicker() {
+    document.body.classList.add('in-session');
+    $('#app').innerHTML = `<div data-notr><div class="card center"><div class="big" style="font-size:2rem">Lingua</div>
+        <p><b>Welche Sprache möchtest du lernen?</b></p><p class="small muted">Du kannst sie später jederzeit in den Einstellungen wechseln. Dein Fortschritt wird pro Sprache auf diesem Gerät gespeichert.</p></div>
+      ${Object.keys(packs).map((k) => `<button class="tile picker" data-act="pickLang" data-arg="${k}"><span class="ic">${packs[k].meta.flag}</span><b>${esc(packs[k].meta.name)}</b><small>${esc(packs[k].meta.deName)} lernen</small></button>`).join('')}</div>`;
+  }
+  function moduleAvail() {
+    const pk = pack(); const fx = new RegExp(pk.meta.fauxRx || 'Faux ami');
+    return { lire: !!(pk.reading && pk.reading.length) || aiReady(), dialogue: !!(pk.dialogues && pk.dialogues.length) || aiReady(), telephone: !!(pk.dialogues && pk.dialogues.length),
+      radio: !!pk.radio, grammaire: !!(pk.grammar && pk.grammar.length), parler: !!(pk.speaking && pk.speaking.length), ecriture: !!(pk.writing && pk.writing.length),
+      conjugaison: !!pk.conj, nombres: !!pk.numbers, shadowing: !!((pk.sounds && pk.sounds.length) || (pk.reading && pk.reading.length)),
+      fauxamis: pk.quiz.some((q) => fx.test(q.q)), suisse: !!pk.meta.regionName, prononciation: true, dictee: true, puzzle: true };
+  }
   function viewHome() {
     const p = prof(); const m = mission(); const doneN = m.done.filter(Boolean).length;
     const xpToday = state.xpByDay[today()] || 0; const g = goal();
@@ -538,7 +626,7 @@
         <p class="muted small">${U('missionSub')} (${state.settings.minutes} min)</p>
         <div class="bar" style="margin:8px 0 12px"><i style="width:${Math.round((doneN / 3) * 100)}%"></i></div>
         <div class="steps">${missionSteps().map((st, k) => `<span class="${m.done[k] ? 'done' : ''}">${m.done[k] ? '✓' : st[1]} ${st[2]}</span>`).join('')}</div>
-        ${doneN < 3 ? `<button class="btn primary block" data-act="mission" data-arg="${nextMissionStep()}">${doneN ? U('continue') : U('start')} : ${missionSteps()[nextMissionStep()][2]}</button>` : '<p><b>Mission accomplie pour aujourd’hui ✓</b></p>'}
+        ${doneN < 3 ? `<button class="btn primary block" data-act="mission" data-arg="${nextMissionStep()}"><span>${doneN ? U('continue') : U('start')}</span> : <span>${missionSteps()[nextMissionStep()][2]}</span></button>` : '<p><b>Mission accomplie pour aujourd’hui ✓</b></p>'}
       </div>
       <div class="card">
         <div class="row between"><span>${U('today')}</span><span class="small muted">${xpToday}/${g} XP</span></div>
@@ -552,19 +640,24 @@
         <button class="tile" data-act="go" data-arg="lire"><span class="ic">📖</span><b>Compréhension</b><small>Texte du jour</small></button>
         <button class="tile" data-act="go" data-arg="dialogue"><span class="ic">💬</span><b>Dialogues</b><small>Situations guidées</small></button>
         <button class="tile" data-act="go" data-arg="telephone"><span class="ic">📞</span><b>Téléphone</b><small>Écouter sans texte</small></button>
+        <button class="tile" data-act="go" data-arg="radio"><span class="ic">📻</span><b>Radio</b><small data-notr>${esc(META().radioSub || 'RTS, Radio Fribourg')}</small></button>
+        <button class="tile" data-act="go" data-arg="grammaire"><span class="ic">📐</span><b>Grammaire</b><small>Règles + exercices</small></button>
         <button class="tile" data-act="go" data-arg="gaps"><span class="ic">✏️</span><b>${U('gaps')}</b><small>${U('gapsSub')}</small></button>
         <button class="tile" data-act="go" data-arg="quiz"><span class="ic">❓</span><b>${U('quiz')}</b><small>${U('quizSub')}</small></button>
       </div>
       <div class="section-title">S’entraîner</div>
       <div class="grid">
+        <button class="tile" data-act="go" data-arg="parler"><span class="ic">🗨️</span><b>Parler librement</b><small>Chrono + enregistrement</small></button>
+        <button class="tile" data-act="go" data-arg="ecriture"><span class="ic">✍️</span><b>Écriture</b><small>Textes + modèle</small></button>
+        <button class="tile" data-act="go" data-arg="phrases"><span class="ic">📌</span><b>Phrases ${phDue().length ? `<span class="badge-n">${phDue().length}</span>` : ''}</b><small>Phrases à retenir</small></button>
         <button class="tile" data-act="go" data-arg="shadowing"><span class="ic">🎙️</span><b>Shadowing</b><small>Répéter et s’enregistrer</small></button>
         <button class="tile" data-act="go" data-arg="nombres"><span class="ic">🔢</span><b>Nombres</b><small>Prix, heures, téléphone</small></button>
-        <button class="tile" data-act="go" data-arg="conjugaison"><span class="ic">🔤</span><b>Conjugaison</b><small>52 verbes, 6 temps</small></button>
+        <button class="tile" data-act="go" data-arg="conjugaison"><span class="ic">🔤</span><b>Conjugaison</b><small>Progressif A1 → C1</small></button>
         <button class="tile" data-act="go" data-arg="dictee"><span class="ic">🎧</span><b>Dictée</b><small>Écouter et écrire</small></button>
         <button class="tile" data-act="go" data-arg="puzzle"><span class="ic">🧩</span><b>Phrases puzzle</b><small>Remettre en ordre</small></button>
         <button class="tile" data-act="go" data-arg="prononciation"><span class="ic">🗣️</span><b>Prononciation</b><small>Lire à voix haute</small></button>
-        <button class="tile" data-act="go" data-arg="fauxamis"><span class="ic">🎭</span><b>Faux amis</b><small>Pièges FR–DE</small></button>
-        <button class="tile" data-act="go" data-arg="suisse"><span class="ic">🇨🇭</span><b>Suisse romande</b><small>Helvétismes & culture</small></button>
+        <button class="tile" data-act="go" data-arg="fauxamis"><span class="ic">🎭</span><b>Faux amis</b><small>Pièges ${META().code.toUpperCase()}–DE</small></button>
+        <button class="tile" data-act="go" data-arg="suisse"><span class="ic">🇨🇭</span><b data-notr>${esc(META().regionName || '')}</b><small>${esc(META().regionSub || 'Helvétismes & culture')}</small></button>
         <button class="tile" data-act="go" data-arg="erreurs"><span class="ic">📒</span><b>${U('errors')} ${errN ? `<span class="badge-n">${errN}</span>` : ''}</b><small>${U('errorsSub')}</small></button>
       </div>
       <div class="section-title">Outils</div>
@@ -574,8 +667,10 @@
         <button class="tile" data-act="go" data-arg="ia-exercices"><span class="ic">🧪</span><b>Exercices IA <span class="ai">✨</span></b><small>Avec clé Gemini</small></button>
       </div>
       ${stock().days > 10 ? stockCard() : ''}
-      <div class="section-title">${U('soon')}</div>
+      ${ROADMAP.length ? `<div class="section-title">${U('soon')}</div>` : ''}
       <div class="grid">${ROADMAP.map((r) => `<div class="tile soon"><span class="ic">${r[0]}</span><b>${r[1]}</b><small>${U('soon')}</small></div>`).join('')}</div>`;
+    const av = moduleAvail();
+    document.querySelectorAll('#app .tile[data-arg]').forEach((el) => { if (av[el.dataset.arg] === false) el.remove(); });
   }
   function viewErrors() {
     const p = prof(); const keys = Object.keys(p.errors);
@@ -583,6 +678,7 @@
     const items = keys.map((k) => { const [type, ...rest] = k.split(':'); const id = rest.join(':'); return { k, type, x: byId[id] }; }).filter((e) => e.x);
     $('#app').innerHTML = `<div class="card"><h1>📒 ${U('errors')}</h1>
       <p class="small muted">Chaque erreur revient ici. Deux bonnes réponses de suite et elle disparaît.</p>
+      ${weakChapters().length ? `<div class="passage small"><b>📐 À revoir en grammaire :</b> ${weakChapters().map((w) => `<button class="chipbtn" data-act="gramOpen" data-arg="${w.c.id}">${esc(w.c.t)}</button>`).join(' ')}</div>` : ''}
       ${items.length ? `<button class="btn primary block" data-act="errStart">Réviser (${Math.min(10, items.length)})</button>` : '<p>Aucune erreur pour le moment. 🎉</p>'}
       </div>
       ${items.length ? `<div class="card"><ul class="list">${items.slice(0, 60).map((e) => `<li class="small"><span class="chip">${e.type}</span> ${esc(e.type === 'vocab' ? e.x.fr + ' – ' + e.x.de : e.type === 'gap' ? e.x.s.replace('___', '[' + e.x.a + ']') : e.x.q)} <span class="muted">×${p.errors[e.k].n}</span></li>`).join('')}</ul></div>` : ''}`;
@@ -634,21 +730,23 @@
     $('#app').innerHTML = `
       <div class="card"><h1>Réglages</h1>
         <div class="field"><label>Temps par jour</label>${seg('minutes', [[5, '5 min'], [10, '10 min'], [15, '15 min']], s.minutes)}</div>
-        <div class="field"><label>Explications</label>${seg('explain', [['fr', 'Français'], ['de', 'FR + Deutsch']], s.explain)}</div>
+        <div class="field"><label>Explications</label>${seg('explain', [['fr', META().name], ['de', META().name + ' + Deutsch']], s.explain)}</div>
         <div class="field"><label>Vitesse de la voix</label>${seg('rate', [[0.8, 'Lente'], [0.95, 'Normale'], [1.1, 'Rapide']], s.rate)}</div>
         <div class="field"><label>Son</label>${seg('audio', [['on', '🔊 Avec son'], ['off', '🔇 Sans son (texte)']], s.audio)}<p class="small muted">Sans son, tous les exercices restent faisables par écrit. Raccourci : 🔊 en haut à droite.</p></div>
         <div class="field"><label>Thème</label>${seg('theme', [['auto', 'Auto'], ['light', 'Clair'], ['dark', 'Sombre']], s.theme)}</div>
-        <div class="field"><label>Langue</label>${seg('lang', Object.keys(packs).map((k) => [k, packs[k].meta.flag + ' ' + packs[k].meta.name]), state.lang)}<p class="small muted">🇮🇹 Italiano : bientôt.</p></div>
+        <div class="field"><label>Langue</label>${seg('lang', Object.keys(packs).map((k) => [k, packs[k].meta.flag + ' ' + packs[k].meta.name]), state.lang)}</div>
+        <div class="field"><label>Aide en allemand</label>${seg('uiDe', [['', 'Non'], ['1', '🇩🇪 Oui']], s.uiDe ? '1' : '')}<p class="small muted">🇩🇪 Bedienoberfläche vorübergehend auf Deutsch anzeigen (auch über den Knopf «DE» oben).</p></div>
       </div>
       <div class="card" id="voiceBox"><h2>Voix</h2>
         ${!hasTTS ? '<p class="small">Synthèse vocale non disponible dans ce navigateur.</p>' : langVoices().length ? `
           <div class="field"><label class="small">Voix française</label><select id="voiceSel" class="btn block" style="font-weight:400">${langVoices().map((v) => `<option value="${esc(v.name)}" ${voice && v.name === voice.name ? 'selected' : ''}>${esc(v.name)} (${esc(v.lang)})</option>`).join('')}</select></div>
           <button class="btn small" data-act="testVoice">🔊 Tester la voix</button>`
         : `<p class="small"><b>Aucune voix française installée.</b> L’app ne lit donc rien à voix haute (pour éviter un accent étranger). Les exercices restent faisables par écrit.</p>`}
-        <details class="small muted" style="margin-top:10px"><summary>Französische Stimme installieren</summary>
-          <p><b>Android (Samsung):</b> Einstellungen → Allgemeine Verwaltung → Sprache → Text-zu-Sprache → bevorzugte Engine (Google oder Samsung) → Zahnrad → Sprachdaten installieren → Französisch.</p>
-          <p><b>Windows 11:</b> Einstellungen → Zeit und Sprache → Sprache und Region → Sprache hinzufügen → Français (Suisse oder France), dabei «Text-zu-Sprache» anhaken. Danach den Browser neu starten.</p>
-          <p><b>macOS:</b> Systemeinstellungen → Bedienungshilfen → Gesprochene Inhalte → Systemstimme → Stimmen verwalten → Französisch.</p>
+        <details class="small muted" style="margin-top:10px"><summary>${META().deName}e Stimme installieren</summary>
+          <p><b>Android (Samsung):</b> Einstellungen → Allgemeine Verwaltung → Sprache → Text-zu-Sprache → bevorzugte Engine (Google oder Samsung) → Zahnrad → Sprachdaten installieren → ${META().deName}.</p>
+          <p><b>iPhone:</b> Einstellungen → Bedienungshilfen → Gesprochene Inhalte → Stimmen → ${META().deName} → eine Stimme laden. Danach die App neu öffnen.</p>
+          <p><b>Windows 11:</b> Einstellungen → Zeit und Sprache → Sprache und Region → Sprache hinzufügen → ${META().winLang}, dabei «Text-zu-Sprache» anhaken. Danach den Browser neu starten.</p>
+          <p><b>macOS:</b> Systemeinstellungen → Bedienungshilfen → Gesprochene Inhalte → Systemstimme → Stimmen verwalten → ${META().deName}.</p>
           <p>Firefox nutzt die Stimmen des Betriebssystems; Chrome bringt teils eigene Online-Stimmen mit.</p></details>
       </div>
       ${aiSettingsCard()}
@@ -675,7 +773,6 @@
      Monatspaket (ohne KI): Texte du jour, geführte Dialoge, Telefon,
      Diktat, Satzpuzzle, Aussprache, Faux amis, Suisse romande
      ====================================================================== */
-  const PACK_NAME = 'Paquet 1 (décembre 2026)';
   function packTexts() { return pack().reading || []; }
   function packDialogs() { return pack().dialogues || []; }
   function doneMap(k) { const p = prof(); p[k] = p[k] || {}; return p[k]; }
@@ -694,7 +791,7 @@
   }
   function stockCard() {
     const s = stock();
-    if (s.days > 10) return `<p class="small muted center">📦 ${PACK_NAME} : encore env. ${s.days} jours de contenu (${s.tLeft} textes, ${s.dLeft} dialogues).</p>`;
+    if (s.days > 10) return `<p class="small muted center">📦 ${esc(META().packName || '')} : encore env. ${s.days} jours de contenu (${s.tLeft} textes, ${s.dLeft} dialogues).</p>`;
     return `<div class="card warn"><b>📦 ${s.days ? 'Le paquet de contenu se termine bientôt' : 'Paquet de contenu terminé'}</b>
       <p class="small">${s.days ? `Encore env. ${s.days} jours (${s.tLeft} textes, ${s.dLeft} dialogues).` : 'Tous les textes et dialogues ont été faits. Les autres exercices continuent de fonctionner.'}</p>
       <p class="small muted">🇩🇪 Zeit für ein neues Inhaltspaket: Schreib Claude im Chat, dass du das nächste Paket brauchst.</p></div>`;
@@ -785,7 +882,7 @@
       const ok = s.last === 'ok';
       html += `<div class="feedback ${s.mode === 'write' ? '' : ok ? 'ok' : 'ko'}" style="${s.mode === 'write' ? 'background:var(--accent-soft)' : ''}">
           ${s.mode === 'write' ? `<div class="small muted">Ta réponse : ${esc(s.mine)}</div><div class="title" style="margin-top:6px">Réponse modèle :</div>` : `<div class="title">${ok ? '✓ ' + U('correct') : '✗ Meilleure réponse :'}</div>`}
-          <div><b>${esc(st.a)}</b></div>${audioBtns(st.a)}${explainHtml({ fr: st.fr, de: st.de })}</div>
+          <div><b>${esc(st.a)}</b></div>${audioBtns(st.a)}${phraseBtn(st.a, d.t)}${explainHtml({ fr: st.fr, de: st.de })}</div>
         ${s.mode === 'write' && !s.rated ? `<p class="small" style="margin:10px 0 4px">Ta réponse était…</p><div class="btnrow"><button class="btn small" data-act="dlgRate" data-arg="2">✓ juste</button><button class="btn small" data-act="dlgRate" data-arg="1">≈ presque</button><button class="btn small" data-act="dlgRate" data-arg="0">✗ différente</button></div>`
           : `<button class="btn primary block" style="margin-top:12px" data-act="dlgNext">${U('continue')}</button>`}`;
     }
@@ -865,7 +962,7 @@
           <div class="title">${r.state === 'ok' ? '✓ Parfait !' : r.state === 'acc' ? '≈ Presque – attention aux accents' : '✗ Pas tout à fait'}</div>
           <div class="small muted">Ta version : ${esc(s.mine)}</div>
           <div class="diff" style="margin-top:6px">${r.marks.map(([w, c]) => `<span class="mk-${c}">${esc(w)}</span>`).join(' ')}</div>
-          <div class="small" style="margin-top:6px">Phrase : <b>${esc(it.s)}</b></div>
+          <div class="small" style="margin-top:6px">Phrase : <b>${esc(it.s)}</b></div>${phraseBtn(it.s, 'dictée')}
         </div><button class="btn primary block" style="margin-top:12px" data-act="dictNext">${s.i + 1 < s.items.length ? U('continue') : U('finish')}</button></div>`;
     }
     $('#app').innerHTML = html;
@@ -949,7 +1046,7 @@
   function pronSpeak() {
     const s = session; const it = s.items[s.i];
     try {
-      const rec = new SR(); rec.lang = 'fr-FR'; rec.interimResults = false; rec.maxAlternatives = 3;
+      const rec = new SR(); rec.lang = META().tts[0]; rec.interimResults = false; rec.maxAlternatives = 3;
       s.listening = true; renderPron();
       rec.onresult = (e) => {
         const T = normTxt(it.s).split(' ');
@@ -980,15 +1077,17 @@
   /* ---------- Faux amis & Suisse romande ---------- */
   const SUISSE_RX = /Suisse|romand|Romand|Fribourg|Gruyère|Bénichon|Léman|Sarine|Röstigraben|septante|nonante|huitante|natel|bancomat|votation|panosse|cornet|syndic|pendulaire|Confédéré|tournus|piquet|régie|course d’école/;
   function startFauxAmis() {
-    const items = pickItems(P().quiz.filter((q) => /Faux ami/.test(q.q)), 'vocab', 8, 'quiz:')
+    const fx = new RegExp(META().fauxRx || 'Faux ami');
+    const items = pickItems(P().quiz.filter((q) => fx.test(q.q)), 'vocab', 8, 'quiz:')
       .map((q) => ({ key: 'quiz:' + q.id, chip: q.l + ' · faux amis', prompt: esc(q.q), options: q.o, answer: q.a, explain: { fr: q.fr, de: q.de } }));
     startMC('Faux amis', items, {});
   }
   function startSuisse() {
-    const qs = pickItems(P().quiz.filter((q) => SUISSE_RX.test(q.q)), 'vocab', 5, 'quiz:')
-      .map((q) => ({ key: 'quiz:' + q.id, chip: q.l + ' · Suisse romande', prompt: esc(q.q), options: q.o, answer: q.a, explain: { fr: q.fr, de: q.de } }));
-    const ws = pickItems(P().vocab.filter((w) => w.th === 'suisse'), 'vocab', 3, 'vocab:').map(vocabMC);
-    startMC('Suisse romande', shuffle(qs.concat(ws)), {});
+    const rx = META().regionRx ? new RegExp(META().regionRx) : SUISSE_RX;
+    const qs = pickItems(P().quiz.filter((q) => rx.test(q.q)), 'vocab', 5, 'quiz:')
+      .map((q) => ({ key: 'quiz:' + q.id, chip: q.l + ' · ' + (META().regionName || ''), prompt: esc(q.q), options: q.o, answer: q.a, explain: { fr: q.fr, de: q.de } }));
+    const ws = pickItems(P().vocab.filter((w) => w.th === (META().regionTheme || 'suisse')), 'vocab', 3, 'vocab:').map(vocabMC);
+    startMC(META().regionName || 'Suisse romande', shuffle(qs.concat(ws)), {});
   }
 
   /* ======================================================================
@@ -1006,42 +1105,85 @@
   const normAns = (s) => s.toLowerCase().replace(/[’`´ʼ]/g, '\'').replace(/\s+/g, ' ').trim();
   const joinPron = (p, f) => (/’$/.test(p) ? p + f : p + ' ' + f);
 
-  /* ---------- Konjugation ---------- */
+  /* ---------- Konjugation (adaptiv nach Stufen, oder frei) ---------- */
+  const CONJ_UP = { n: 20, acc: 0.85 };   // Aufstieg: letzte 20 Antworten der Stufe ≥ 85 %
+  const CONJ_DOWN = { n: 15, acc: 0.6 };  // Abstieg: letzte 15 Antworten < 60 %
   function conj() { return pack().conj; }
-  function conjTenses() { const L = Math.max(lvlIdx(prof().levels.grammar), lvlIdx('A2')); return conj().tenses.filter((t) => lvlIdx(t.l) <= L + 1); }
+  const cMode = () => state.settings.cMode || 'prog';
   function conjBox(k) { const p = prof(); p.conj = p.conj || {}; return p.conj[k] || 0; }
+  function conjProg() { const p = prof(); p.conjProg = p.conjProg || { stage: 0, hist: [], best: 0 }; return p.conjProg; }
+  function stageVerbs(k) {
+    const st = conj().stages[k];
+    if (st.verbs) return conj().verbs.filter((v) => st.verbs.includes(v.inf));
+    return conj().verbs.filter((v) => lvlIdx(v.l) <= lvlIdx(st.verbLevel));
+  }
+  function stageTenses(k) { return conj().tenses.filter((t) => conj().stages[k].tenses.includes(t.id)); }
+  function conjFreeTenses() { const L = Math.max(lvlIdx(prof().levels.grammar), lvlIdx('A2')); return conj().tenses.filter((t) => lvlIdx(t.l) <= L + 1); }
+  function conjStats() {
+    const pr = conjProg(); const h = pr.hist.slice(-CONJ_UP.n);
+    const acc = h.length ? h.reduce((a, b) => a + b, 0) / h.length : 0;
+    return { n: h.length, acc };
+  }
+  function conjLadder() {
+    const pr = conjProg();
+    return `<div class="ladder">${conj().stages.map((st, k) => `<span class="${k < pr.stage ? 'done' : k === pr.stage ? 'cur' : ''}">${k < pr.stage ? '✓ ' : ''}${st.l}</span>`).join('')}</div>`;
+  }
   function viewConj() {
     if (!conj()) { $('#app').innerHTML = '<div class="card">Pas encore disponible pour cette langue.</div>'; return; }
-    const ts = conjTenses(); ui.cTense = ui.cTense || 'auto';
-    const vs = conj().verbs; ui.cVerb = ui.cVerb || 'aller';
+    ui.cTense = ui.cTense || 'auto';
+    const vs = conj().verbs; ui.cVerb = ui.cVerb || vs[0].inf;
     const v = vs.find((x) => x.inf === ui.cVerb) || vs[0];
-    $('#app').innerHTML = `<div class="card"><h1>🔤 Conjugaison</h1>
-        <p class="small muted">${vs.length} verbes fréquents. Les formes difficiles reviennent plus souvent.</p>
-        <div class="field"><label class="small">Temps</label><div class="chips">
+    const pr = conjProg(); const st = conj().stages[pr.stage]; const s = conjStats();
+    const prog = `<div class="field">${conjLadder()}
+        <p class="small" style="margin:8px 0 4px">Niveau actuel <b>${st.l}</b> : ${stageTenses(pr.stage).map((t) => t.name).join(', ')} (${stageVerbs(pr.stage).length} verbes)${pr.stage > 0 ? ' + révision des niveaux précédents' : ''}.</p>
+        <div class="row between small muted"><span>Maîtrise : ${s.n}/${CONJ_UP.n} réponses · ${Math.round(s.acc * 100)} %</span><span>objectif ${Math.round(CONJ_UP.acc * 100)} %</span></div>
+        <div class="bar" style="margin-top:4px"><i style="width:${Math.round((s.n / CONJ_UP.n) * Math.min(1, s.acc / CONJ_UP.acc) * 100)}%"></i></div>
+        ${ui.conjMsg ? `<p class="small" style="margin-top:8px"><b>${ui.conjMsg}</b></p>` : ''}
+        <details class="small muted" style="margin-top:8px"><summary>So funktioniert der Stufen-Modus</summary>Du beginnst bei A1 (Präsens der häufigsten Verben). Sobald von deinen letzten ${CONJ_UP.n} Antworten auf dieser Stufe mindestens ${Math.round(CONJ_UP.acc * 100)} % richtig sind, kommen die Zeiten der nächsten Stufe dazu. Sind von den letzten ${CONJ_DOWN.n} weniger als ${Math.round(CONJ_DOWN.acc * 100)} % richtig, geht es eine Stufe zurück. Frühere Stufen werden immer mit etwa 30 % der Aufgaben wiederholt. Fehler nur bei Akzenten zählen halb.</details></div>`;
+    const free = `<div class="field"><label class="small">Temps</label><div class="chips">
           <button class="chipbtn ${ui.cTense === 'auto' ? 'on' : ''}" data-act="cTense" data-arg="auto">🎲 Mélange</button>
-          ${ts.map((t) => `<button class="chipbtn ${ui.cTense === t.id ? 'on' : ''}" data-act="cTense" data-arg="${t.id}">${t.name}</button>`).join('')}</div></div>
+          ${conjFreeTenses().map((t) => `<button class="chipbtn ${ui.cTense === t.id ? 'on' : ''}" data-act="cTense" data-arg="${t.id}">${t.name}</button>`).join('')}</div></div>`;
+    $('#app').innerHTML = `<div class="card"><h1>🔤 Conjugaison</h1>
+        <div class="field">${seg('cMode', [['prog', '📈 Progressif'], ['free', '🎯 Libre']], cMode())}</div>
+        ${cMode() === 'prog' ? prog : free}
         <button class="btn primary block" data-act="conjStart">S’entraîner (10 formes)</button></div>
       <div class="card"><h2>📋 Tableaux</h2>
         <select id="cVerb" class="input">${vs.map((x) => `<option value="${esc(x.inf)}" ${x.inf === v.inf ? 'selected' : ''}>${esc(x.inf)} – ${esc(x.de)}</option>`).join('')}</select>
         <div class="ctables">${conj().tenses.map((t) => `<div class="ctab"><b>${t.name}</b>${conj().conjugate(v, t.id).map((x) => `<div>${esc(joinPron(x.pron, x.form))}</div>`).join('')}</div>`).join('')}</div>
-        ${v.aux === 'être' ? '<p class="small muted">Passé composé avec « être » : le participe s’accorde avec le sujet.</p>' : ''}</div>`;
+        ${v.aux === 'être' ? '<p class="small muted">Temps composés avec « être » : le participe s’accorde avec le sujet.</p>' : ''}</div>`;
     const sel = $('#cVerb'); if (sel) sel.addEventListener('change', () => { ui.cVerb = sel.value; viewConj(); });
   }
+  function conjCands(tenses, verbs, cur) {
+    const out = []; verbs.forEach((v) => tenses.forEach((t) => out.push({ v, t, id: v.inf + '|' + t.id, l: v.l, cur }))); return out;
+  }
   function conjStart() {
-    const L = Math.max(lvlIdx(prof().levels.grammar), lvlIdx('A2'));
-    const tenses = ui.cTense === 'auto' ? conjTenses() : conj().tenses.filter((t) => t.id === ui.cTense);
-    const verbs = conj().verbs.filter((v) => lvlIdx(v.l) <= L + 1);
-    const cands = [];
-    verbs.forEach((v) => tenses.forEach((t) => cands.push({ v, t, id: v.inf + '|' + t.id, l: v.l })));
-    const picked = weightedSample(cands, (c) => (6 - conjBox(c.id)) * (lvlIdx(c.l) <= L ? 2 : 1), 10);
+    let picked = [];
+    if (cMode() === 'free') {
+      const L = Math.max(lvlIdx(prof().levels.grammar), lvlIdx('A2'));
+      const tenses = ui.cTense === 'auto' ? conjFreeTenses() : conj().tenses.filter((t) => t.id === ui.cTense);
+      const cands = conjCands(tenses, conj().verbs.filter((v) => lvlIdx(v.l) <= L + 1), false);
+      picked = weightedSample(cands, (c) => (6 - conjBox(c.id)) * (lvlIdx(c.l) <= L ? 2 : 1), 10);
+    } else {
+      const k = conjProg().stage;
+      const cur = conjCands(stageTenses(k), stageVerbs(k), true);
+      const nRev = k > 0 ? 3 : 0;
+      picked = weightedSample(cur, (c) => 6 - conjBox(c.id), 10 - nRev);
+      if (nRev) {
+        let rev = [];
+        for (let j = 0; j < k; j++) rev = rev.concat(conjCands(stageTenses(j), stageVerbs(k), false));
+        picked = picked.concat(weightedSample(rev, (c) => 6 - conjBox(c.id), nRev));
+      }
+      picked = shuffle(picked);
+    }
     const items = picked.map((c) => { const i = Math.floor(Math.random() * 6); const f = conj().conjugate(c.v, c.t.id)[i]; return Object.assign({}, c, { i, f }); });
-    session = { kind: 'conj', items, k: 0, xp: 0, good: 0, phase: 'ask' };
+    session = { kind: 'conj', items, k: 0, xp: 0, good: 0, phase: 'ask', mode: cMode(), stage0: conjProg().stage };
+    ui.conjMsg = '';
     document.body.classList.add('in-session'); renderConj();
   }
   function renderConj() {
     const s = session; const it = s.items[s.k]; const pct = Math.round((s.k / s.items.length) * 100);
     let html = `<div class="ex-head"><button class="x" data-act="quit" aria-label="Quitter">✕</button><div class="bar"><i style="width:${pct}%"></i></div><span class="small muted">${s.k + 1}/${s.items.length}</span></div>
-      <div class="card"><span class="chip">${it.t.name}</span>
+      <div class="card"><span class="chip">${it.t.name}</span>${s.mode === 'prog' && !it.cur ? ' <span class="chip">révision</span>' : ''}
         <div class="prompt" style="margin-top:10px">${esc(it.v.inf)} <span class="small muted">(${esc(it.v.de)})</span></div>
         <div class="conj-row"><span class="pron">${esc(it.f.pron)}</span>
           <input id="conjInput" class="input" autocomplete="off" autocapitalize="off" spellcheck="false" ${s.phase !== 'ask' ? 'disabled' : ''} value="${s.phase !== 'ask' ? esc(s.mine) : ''}" placeholder="…"></div>
@@ -1050,7 +1192,7 @@
       const ok = s.res === 'ok';
       html += `<div class="feedback ${ok ? 'ok' : s.res === 'acc' ? '' : 'ko'}" style="${s.res === 'acc' ? 'background:var(--accent-soft)' : ''}">
           <div class="title">${ok ? '✓ ' + U('correct') : s.res === 'acc' ? '≈ Presque : attention aux accents' : '✗ ' + U('wrong')}</div>
-          <div><b>${esc(joinPron(it.f.pron, it.f.form))}</b></div>${audioBtns(joinPron(it.f.pron, it.f.form).replace(/\(e\)|\(s\)/g, ''))}
+          <div><b>${esc(joinPron(it.f.pron, it.f.form))}</b></div>${audioBtns(joinPron(it.f.pron, it.f.form).replace(/\([a-z]+\)/g, ''))}
           <details class="small"><summary>Tout le ${esc(it.t.name)}</summary>${conj().conjugate(it.v, it.t.id).map((x) => `<div>${esc(joinPron(x.pron, x.form))}</div>`).join('')}</details></div>
         <button class="btn primary block" style="margin-top:12px" data-act="conjNext">${s.k + 1 < s.items.length ? U('continue') : U('finish')}</button>`;
     }
@@ -1062,36 +1204,57 @@
     const s = session; const it = s.items[s.k];
     let mine = normAns($('#conjInput').value || '');
     if (!mine) { toast('Écris d’abord la forme.'); return; }
-    mine = mine.replace(/^(que |qu'|qu’)/, '').replace(/^(je |j'|tu |il |elle |on |nous |vous |ils |elles )/, '');
+    mine = mine.replace(/^(que |qu')/, '').replace(/^(je |j'|tu |il |elle |on |nous |vous |ils |elles )/, '');
     const acc = it.f.accept.map(normAns);
     s.res = acc.includes(mine) ? 'ok' : acc.some((a) => stripAcc(a) === stripAcc(mine)) ? 'acc' : 'ko';
     s.mine = mine;
     const p = prof(); p.conj = p.conj || {};
     if (s.res === 'ok') { s.good++; s.xp += 4; p.conj[it.id] = Math.min(5, conjBox(it.id) + 1); }
     else { s.xp += 1; p.conj[it.id] = 0; }
+    if (s.mode === 'prog' && it.cur) { const pr = conjProg(); pr.hist.push(s.res === 'ok' ? 1 : s.res === 'acc' ? 0.5 : 0); pr.hist = pr.hist.slice(-40); }
     save(); s.phase = 'fb'; renderConj();
   }
-  function conjNext() { const s = session; s.k++; s.phase = 'ask'; if (s.k < s.items.length) renderConj(); else finishSession(s.good, s.items.length, s.xp); }
+  function conjEvaluate() {
+    const pr = conjProg(); const max = conj().stages.length - 1;
+    const up = pr.hist.slice(-CONJ_UP.n), down = pr.hist.slice(-CONJ_DOWN.n);
+    const avg = (a) => a.reduce((x, y) => x + y, 0) / a.length;
+    if (up.length >= CONJ_UP.n && avg(up) >= CONJ_UP.acc && pr.stage < max) {
+      pr.stage++; pr.hist = []; pr.best = Math.max(pr.best, pr.stage);
+      return `🎉 Niveau ${conj().stages[pr.stage].l} débloqué : ${stageTenses(pr.stage).map((t) => t.name).join(', ')} !`;
+    }
+    if (down.length >= CONJ_DOWN.n && avg(down) < CONJ_DOWN.acc && pr.stage > 0) {
+      pr.stage--; pr.hist = [];
+      return `On revient au niveau ${conj().stages[pr.stage].l} pour consolider. Courage !`;
+    }
+    if (up.length >= CONJ_UP.n && avg(up) >= CONJ_UP.acc && pr.stage === max) return '🏆 Tu maîtrises tous les niveaux de conjugaison !';
+    return '';
+  }
+  function conjNext() {
+    const s = session; s.k++; s.phase = 'ask';
+    if (s.k < s.items.length) { renderConj(); return; }
+    if (s.mode === 'prog') { ui.conjMsg = conjEvaluate(); save(); if (ui.conjMsg) setTimeout(() => toast(ui.conjMsg), 600); }
+    finishSession(s.good, s.items.length, s.xp);
+  }
 
   /* ---------- Zahlen ---------- */
   const rnd = (a, b) => a + Math.floor(Math.random() * (b - a + 1));
   function numItem(type, variant) {
     const N = pack().numbers; const w = (n) => N.words(n, variant); const L = lvlIdx(prof().levels.listening);
-    const pad2 = (n) => String(n).padStart(2, '0');
+    const pad2 = (n) => String(n).padStart(2, '0'); const F = N.fmt || {};
     if (type === 'num') { const n = L <= 1 ? (Math.random() < 0.6 ? rnd(60, 99) : rnd(11, 59)) : L === 2 ? (Math.random() < 0.5 ? rnd(60, 99) : rnd(100, 999)) : rnd(100, 99999); return { label: 'Nombre', say: w(n), ans: String(n), check: 'digits' }; }
-    if (type === 'year') { const n = rnd(1950, 2035); return { label: 'Année', say: 'en ' + w(n), ans: String(n), check: 'digits' }; }
-    if (type === 'price') { const f = rnd(1, L <= 1 ? 99 : 450), c = rnd(0, 19) * 5; return { label: 'Prix (CHF)', say: (f === 1 ? 'un franc' : w(f) + ' francs') + (c ? ' ' + w(c) : ''), ans: f + '.' + pad2(c), check: 'price' }; }
+    if (type === 'year') { const n = rnd(1950, 2035); return { label: 'Année', say: F.year ? F.year(n, w) : 'en ' + w(n), ans: String(n), check: 'digits' }; }
+    if (type === 'price') { const f = rnd(1, L <= 1 ? 99 : 450), c = rnd(0, 19) * 5; return { label: 'Prix (CHF)', say: F.price ? F.price(f, c, w) : (f === 1 ? 'un franc' : w(f) + ' francs') + (c ? ' ' + w(c) : ''), ans: f + '.' + pad2(c), check: 'price' }; }
     if (type === 'phone') {
       const d = '07' + rnd(5, 9) + ' ' + rnd(100, 999) + ' ' + pad2(rnd(0, 99)) + ' ' + pad2(rnd(0, 99));
-      const grp = d.split(' ').map((g) => (g[0] === '0' ? 'zéro ' + w(Number(g)) : w(Number(g))));
-      return { label: 'Numéro de téléphone', say: grp.join(', '), ans: d, check: 'digits' };
+      const say = F.phone ? F.phone(d.split(' '), w) : d.split(' ').map((g) => (g[0] === '0' ? 'zéro ' + w(Number(g)) : w(Number(g)))).join(', ');
+      return { label: 'Numéro de téléphone', say, ans: d, check: 'digits' };
     }
-    if (type === 'time') { const h = rnd(1, 23), m = Math.random() < 0.3 ? rnd(0, 3) * 15 : rnd(0, 59); return { label: 'Heure', say: (h === 1 ? 'une heure' : w(h) + ' heures') + (m ? ' ' + w(m) : ''), ans: h + ':' + pad2(m), check: 'time' }; }
+    if (type === 'time') { const h = rnd(1, 23), m = Math.random() < 0.3 ? rnd(0, 3) * 15 : rnd(0, 59); return { label: 'Heure', say: F.time ? F.time(h, m, w) : (h === 1 ? 'une heure' : w(h) + ' heures') + (m ? ' ' + w(m) : ''), ans: h + ':' + pad2(m), check: 'time' }; }
     if (type === 'date') {
       const mo = rnd(0, 11), d = rnd(1, 28); const fmt = (dd, mm) => pad2(dd) + '.' + pad2(mm + 1) + '.';
       const opts = [fmt(d, mo)]; const alts = [[(d + 9) % 28 + 1, mo], [d, (mo + 1) % 12], [d === 12 ? 2 : d === 13 ? 3 : d === 16 ? 6 : (d + 10) % 28 + 1, (mo + 11) % 12]];
       alts.forEach(([a, b]) => { const x = fmt(a, b); if (!opts.includes(x)) opts.push(x); });
-      return { label: 'Date', say: 'le ' + (d === 1 ? 'premier' : w(d)) + ' ' + N.months[mo], ans: opts[0], options: opts, check: 'mc' };
+      return { label: 'Date', say: F.date ? F.date(d, mo, w, N.months) : 'le ' + (d === 1 ? 'premier' : w(d)) + ' ' + N.months[mo], ans: opts[0], options: opts, check: 'mc' };
     }
     // Lesen: richtige Schreibweise wählen
     const n = rnd(70, 99); const v = Math.random() < 0.5 ? 'ch' : 'fr'; const other = v === 'ch' ? 'fr' : 'ch';
@@ -1103,11 +1266,12 @@
     ui.nVar = ui.nVar || 'mix';
     $('#app').innerHTML = `<div class="card"><h1>🔢 Nombres</h1>
       <p class="small muted">Téléphones, prix, heures, dates : écoute et écris en chiffres.</p>
-      <div class="field"><label class="small">Variante</label>${['mix', 'ch', 'fr'].map((k) => `<button class="chipbtn ${ui.nVar === k ? 'on' : ''}" data-act="nVar" data-arg="${k}">${{ mix: '🎲 Les deux', ch: '🇨🇭 septante, huitante, nonante', fr: '🇫🇷 soixante-dix, quatre-vingts' }[k]}</button>`).join(' ')}</div>
+      ${pack().numbers.variants ? `<div class="field"><label class="small">Variante</label>${['mix', 'ch', 'fr'].map((k) => `<button class="chipbtn ${ui.nVar === k ? 'on' : ''}" data-act="nVar" data-arg="${k}">${{ mix: '🎲 Les deux', ch: '🇨🇭 septante, huitante, nonante', fr: '🇫🇷 soixante-dix, quatre-vingts' }[k]}</button>`).join(' ')}</div>` : ''}
       <button class="btn primary block" data-act="numStart">Commencer (10 exercices)</button></div>`;
   }
   function numStart() {
-    const types = ['num', 'num', 'price', 'price', 'phone', 'time', 'time', 'date', 'year', 'read'];
+    const types = ['num', 'num', 'price', 'price', 'phone', 'time', 'time', 'date', 'year', pack().numbers.variants ? 'read' : 'num'];
+    if (!pack().numbers.variants) ui.nVar = 'std';
     const items = shuffle(types).map((t) => { const v = ui.nVar === 'mix' ? (Math.random() < 0.5 ? 'ch' : 'fr') : ui.nVar; return Object.assign(numItem(t, v), { variant: v }); });
     session = { kind: 'num', items, k: 0, xp: 0, good: 0, phase: 'ask' };
     document.body.classList.add('in-session'); renderNum(true);
@@ -1350,7 +1514,7 @@
   }
   const S = (type, extra) => Object.assign({ type }, extra || {});
   const STR = S('STRING');
-  const LEARNER = 'The learner is a German-speaking adult living in Switzerland, near the French-speaking region (Romandie). ';
+  const LEARNER_ = () => 'The learner is a German-speaking adult living in Switzerland. ' + (META().aiContext || '') + ' ';
   function aiBusy(msg) {
     document.body.classList.add('in-session');
     $('#app').innerHTML = `<div class="card center"><div class="spinner"></div><p>${esc(msg)}</p><p class="small muted">Gemini rédige… (5–20 s)</p></div>`;
@@ -1422,11 +1586,11 @@
   async function genReading(topic, type) {
     const level = prof().levels.reading;
     if (topic === 'surprise') topic = pickTopic();
-    const topicName = (R_TOPICS.find((t) => t[0] === topic) || ['', topic])[1].replace(/^\S+\s/, '');
+    const topicName = topic === 'suisse' ? META().regionName : (R_TOPICS.find((t) => t[0] === topic) || ['', topic])[1].replace(/^\S+\s/, '');
     const typeName = type === 'auto' ? 'a text type of your choice (article, e-mail, dialogue, ad, short story)' : (R_TYPES.find((t) => t[0] === type) || ['', type])[1];
     const nq = lvlIdx(level) >= 3 ? 5 : 4;
-    const prompt = `${LEARNER}Write an original, natural French text: ${typeName}, topic "${topicName}", CEFR level ${level}, about ${R_WORDS[level] || 180} words. Use vocabulary and grammar typical of ${level}; a few slightly harder words are fine (put them in the glossary). Standard French; the setting may be in Suisse romande when natural. Invent people and facts (no real public figures, no current news).
-Then write ${nq} multiple-choice comprehension questions in French, each with exactly 4 options and exactly one correct option; "answer" must be exactly identical to one of the options. Test real understanding (main idea, details${lvlIdx(level) >= 3 ? ', inference, tone' : ''}), not just copying words. "fr": short explanation in French, "de": the same in German.
+    const prompt = `${LEARNER_()}Write an original, natural ${LANG_EN()} text: ${typeName}, topic "${topicName}", CEFR level ${level}, about ${R_WORDS[level] || 180} words. Use vocabulary and grammar typical of ${level}; a few slightly harder words are fine (put them in the glossary). Standard ${LANG_EN()}; the setting may be in ${META().regionName} when natural. Invent people and facts (no real public figures, no current news).
+Then write ${nq} multiple-choice comprehension questions in ${LANG_EN()}, each with exactly 4 options and exactly one correct option; "answer" must be exactly identical to one of the options. Test real understanding (main idea, details${lvlIdx(level) >= 3 ? ', inference, tone' : ''}), not just copying words. "fr": short explanation in ${LANG_EN()}, "de": the same in German.
 Glossary: 6–8 useful words or expressions from the text (in dictionary form, with article for nouns), German translation, and the sentence from the text as "ex".`;
     const r = await aiGenerate({ contents: [{ role: 'user', parts: [{ text: prompt }] }], schema: READ_SCHEMA, temperature: 0.9 });
     const qs = (r.questions || []).map((q) => {
@@ -1445,7 +1609,7 @@ Glossary: 6–8 useful words or expressions from the text (in dictionary form, w
     const chips = (list, cur, act) => `<div class="chips">${list.map(([k, l]) => `<button class="chipbtn ${cur === k ? 'on' : ''}" data-act="${act}" data-arg="${k}">${l}</button>`).join('')}</div>`;
     $('#app').innerHTML = packHtml + `<div class="card"><h2>✨ Texte supplémentaire (IA)</h2>
         <p class="small muted">Un texte original généré par Gemini à ton niveau (${prof().levels.reading}).</p>
-        <div class="field"><label>Thème</label>${chips(R_TOPICS, ui.rTopic, 'rTopic')}</div>
+        <div class="field"><label>Thème</label>${chips(R_TOPICS.map((t) => (t[0] === 'suisse' ? [t[0], '🇨🇭 ' + META().regionName] : t)), ui.rTopic, 'rTopic')}</div>
         <div class="field"><label>Type de texte</label>${chips(R_TYPES, ui.rType, 'rType')}</div>
         <button class="btn primary block" data-act="readGen">✨ Générer un texte</button>
         ${c.reading.length ? `<button class="btn block" style="margin-top:8px" data-act="readCached">📦 Texte préparé (${c.reading.length} disponible${c.reading.length > 1 ? 's' : ''}, aussi hors ligne)</button>` : ''}
@@ -1466,6 +1630,7 @@ Glossary: 6–8 useful words or expressions from the text (in dictionary form, w
       <div class="card"><span class="chip">${r.level} · ${esc(r.topic || '')}</span><h2 style="margin-top:8px">${esc(r.title)}</h2>
         ${audioBtns(r.text)}<div class="reading">${paras}</div></div>
       ${r.glossary.length ? `<div class="card"><details><summary><b>Vocabulaire du texte (${r.glossary.length})</b></summary><ul class="list">${r.glossary.map(wordBtn).join('')}</ul></details></div>` : ''}
+      <div class="card"><details><summary><b>📌 Phrases à retenir</b></summary><ul class="list">${splitChunks(r.text).map((x) => `<li class="small">${esc(x)}<br>${phraseBtn(x, r.title)}</li>`).join('')}</ul></details></div>
       <button class="btn primary block" data-act="readQuestions">Questions →</button>`;
     window.scrollTo(0, 0);
   }
@@ -1491,8 +1656,8 @@ Glossary: 6–8 useful words or expressions from the text (in dictionary form, w
     if (focus === 'weak') { const w = weakTopics(); f = w.length ? `Focus on these topics the learner often gets wrong: ${w.join(', ')}.` : 'Vary the grammar topics.'; }
     else if (focus && focus !== 'mix') f = `All items practise: ${focus}.`;
     else f = 'Vary the grammar topics.';
-    const prompt = `${LEARNER}Create ${n} French fill-in-the-blank grammar exercises at CEFR level ${level}. ${f}
-Rules: each sentence "s" contains exactly one blank written as ___ (three underscores). "o" has exactly 3 options, including the answer "a" written identically. Exactly one option is correct in standard written French; the two others must be clearly wrong (never an alternative that would also be acceptable). Everyday contexts (travel, restaurant, culture, work, life in Suisse romande). "t": grammar topic in French (2–4 words). "fr": explanation in French (max 25 words). "de": the same in German.`;
+    const prompt = `${LEARNER_()}Create ${n} ${LANG_EN()} fill-in-the-blank grammar exercises at CEFR level ${level}. ${f}
+Rules: each sentence "s" contains exactly one blank written as ___ (three underscores). "o" has exactly 3 options, including the answer "a" written identically. Exactly one option is correct in standard written ${LANG_EN()}; the two others must be clearly wrong (never an alternative that would also be acceptable). Everyday contexts (travel, restaurant, culture, work, life in ${META().regionName}). "t": grammar topic in ${LANG_EN()} (2–4 words). "fr": explanation in ${LANG_EN()} (max 25 words). "de": the same in German.`;
     const r = await aiGenerate({ contents: [{ role: 'user', parts: [{ text: prompt }] }], schema: GAP_SCHEMA, temperature: 0.7 });
     const items = (r.items || []).map((g) => {
       const o = (g.o || []).map(String); const a = String(g.a || '');
@@ -1534,6 +1699,7 @@ Rules: each sentence "s" contains exactly one blank written as ___ (three unders
     { id: 'debat', ic: '⚖️', t: 'Discussion : la semaine de 4 jours', role: 'a colleague who is sceptical about the four-day week', task: 'Friendly debate: the learner argues for the four-day week; you politely defend the opposite view with arguments and ask for justification.', min: 'B2' },
     { id: 'libre', ic: '💬', t: 'Conversation libre', role: 'a friendly person from Suisse romande', task: 'Free conversation. Start by asking the learner what they would like to talk about.', min: 'A1' }
   ];
+  const scenarios = () => pack().aiScenarios || SCENARIOS;
   const TURN_SCHEMA = S('OBJECT', { properties: { reply: STR, correction: STR, fr: STR, de: STR, hint: STR }, required: ['reply', 'correction', 'fr', 'de', 'hint'] });
   const SUM_SCHEMA = S('OBJECT', {
     properties: {
@@ -1545,11 +1711,11 @@ Rules: each sentence "s" contains exactly one blank written as ___ (three unders
   function chatLevel() { return prof().levels.vocab; }
   function chatSystem(sc) {
     const L = chatLevel();
-    return `You are a conversation partner in a French role-play. ${LEARNER}Learner level: CEFR ${L}.
+    return `You are a conversation partner in a ${LANG_EN()} role-play. ${LEARNER_()}Learner level: CEFR ${L}.
 Scenario: ${sc.t}. Your role: ${sc.role}. ${sc.task}
-- "reply": stay in character, only French, 1–3 short sentences, natural spoken style adapted to ${L} (A1–A2 very simple, B1 everyday, B2 natural, C1 rich and idiomatic). Usually end with a question or prompt so the conversation continues. Setting: Suisse romande (CHF, Swiss habits) unless stated otherwise. Never ask for real personal data; the learner may invent.
-- After each learner message, check it. If it contains mistakes (grammar, vocabulary, spelling, unidiomatic wording, wrong register), put a corrected natural version of the learner's whole message in "correction" and explain the main point briefly in "fr" (French) and "de" (German). If the message is correct and natural, "correction", "fr" and "de" are empty strings. Ignore missing accents only if the meaning is clear, but mention them in "fr"/"de" when they change the word.
-- "hint": one possible next sentence the learner could say (French, level ${L}).
+- "reply": stay in character, only ${LANG_EN()}, 1–3 short sentences, natural spoken style adapted to ${L} (A1–A2 very simple, B1 everyday, B2 natural, C1 rich and idiomatic). Usually end with a question or prompt so the conversation continues. Setting: ${META().regionName} (CHF, Swiss habits) unless stated otherwise. Never ask for real personal data; the learner may invent.
+- After each learner message, check it. If it contains mistakes (grammar, vocabulary, spelling, unidiomatic wording, wrong register), put a corrected natural version of the learner's whole message in "correction" and explain the main point briefly in "fr" (${LANG_EN()}) and "de" (German). If the message is correct and natural, "correction", "fr" and "de" are empty strings. Ignore missing accents only if the meaning is clear, but mention them in "fr"/"de" when they change the word.
+- "hint": one possible next sentence the learner could say (${LANG_EN()}, level ${L}).
 - If the message is "[START]", open the conversation in your role; then correction/fr/de are empty.`;
   }
   function viewDialog() {
@@ -1558,11 +1724,11 @@ Scenario: ${sc.t}. Your role: ${sc.role}. ${sc.task}
     const L = lvlIdx(chatLevel());
     $('#app').innerHTML = packHtml + `<div class="card"><h2>✨ Dialogue libre (IA)</h2>
       <p class="small muted">Jeu de rôle avec Gemini, correction de chaque message. Niveau : ${chatLevel()}. Tu peux écrire${SR ? ' ou dicter 🎤' : ''}.</p></div>
-      <div class="grid">${SCENARIOS.map((s) => `<button class="tile" data-act="chatStart" data-arg="${s.id}"><span class="ic">${s.ic}</span><b>${esc(s.t)}</b><small>${lvlIdx(s.min) > L ? 'un peu difficile' : 'niveau ' + s.min + '+'}</small></button>`).join('')}</div>
+      <div class="grid">${scenarios().map((s) => `<button class="tile" data-act="chatStart" data-arg="${s.id}"><span class="ic">${s.ic}</span><b>${esc(s.t)}</b><small>${lvlIdx(s.min) > L ? 'un peu difficile' : 'niveau ' + s.min + '+'}</small></button>`).join('')}</div>
       <p class="small muted">N’indique pas de vraies données personnelles : invente si nécessaire.</p>`;
   }
   async function chatStart(id) {
-    const sc = SCENARIOS.find((s) => s.id === id); if (!sc) return;
+    const sc = scenarios().find((s) => s.id === id); if (!sc) return;
     session = { kind: 'chat', sc, msgs: [], busy: true, xp: 0, n: 0 };
     document.body.classList.add('in-session');
     renderChat();
@@ -1627,9 +1793,9 @@ Scenario: ${sc.t}. Your role: ${sc.role}. ${sc.task}
     const s = session; if (s.busy) return;
     aiBusy('Je prépare ton bilan…');
     const transcript = s.msgs.map((m) => (m.role === 'me' ? 'LEARNER: ' : 'PARTNER: ') + m.text).join('\n');
-    const prompt = `${LEARNER}Here is a French role-play (${s.sc.t}) between the learner (CEFR ${chatLevel()}) and a partner:
+    const prompt = `${LEARNER_()}Here is a ${LANG_EN()} role-play (${s.sc.t}) between the learner (CEFR ${chatLevel()}) and a partner:
 ${transcript}
-Give feedback on the LEARNER's French only: "bilan_fr" = 2–3 encouraging, concrete sentences in French (what went well, what to work on); "bilan_de" = the same in German. "points": up to 4 most useful mistakes (the learner's wording, a correct version, short explanation in French and German); empty if none. "mots": 3–6 useful words or expressions for this situation that the learner did not use yet (dictionary form, German translation, an example sentence).`;
+Give feedback on the LEARNER's ${LANG_EN()} only: "bilan_fr" = 2–3 encouraging, concrete sentences in ${LANG_EN()} (what went well, what to work on); "bilan_de" = the same in German. "points": up to 4 most useful mistakes (the learner's wording, a correct version, short explanation in ${LANG_EN()} and German); empty if none. "mots": 3–6 useful words or expressions for this situation that the learner did not use yet (dictionary form, German translation, an example sentence).`;
     try {
       const r = await aiGenerate({ contents: [{ role: 'user', parts: [{ text: prompt }] }], schema: SUM_SCHEMA, temperature: 0.5 });
       const xp = s.xp + 15; addXP(xp);
@@ -1648,7 +1814,7 @@ Give feedback on the LEARNER's French only: "bilan_fr" = 2–3 encouraging, conc
   function dictate(_, btn) {
     if (!SR) return;
     try {
-      const rec = new SR(); rec.lang = 'fr-FR'; rec.interimResults = false; rec.maxAlternatives = 1;
+      const rec = new SR(); rec.lang = META().tts[0]; rec.interimResults = false; rec.maxAlternatives = 1;
       btn.textContent = '⏺️'; btn.disabled = true;
       rec.onresult = (e) => { const t = e.results[0][0].transcript; const box = $('#chatInput'); box.value = (box.value ? box.value + ' ' : '') + t; };
       rec.onerror = (e) => toast(e.error === 'not-allowed' ? 'Micro refusé par le navigateur.' : 'Dictée impossible (' + e.error + ').');
@@ -1695,11 +1861,255 @@ Give feedback on the LEARNER's French only: "bilan_fr" = 2–3 encouraging, conc
     aiSaveConf(c); toast('Modèle : ' + id);
   }
 
+  /* ======================================================================
+     v1.6 – Grammaire, Phrases à retenir, Parler librement, Écriture, Radio
+     ====================================================================== */
+  /* ---------- Grammaire ---------- */
+  function chapters() { return pack().grammar || []; }
+  function chapterFor(topic) { return chapters().find((c) => c.topics.includes(topic)); }
+  function weakChapters() {
+    const byId = P().byId; const cnt = {};
+    Object.keys(prof().errors).forEach((k) => { if (k.startsWith('gap:')) { const g = byId[k.slice(4)]; const c = g && chapterFor(g.t); if (c) cnt[c.id] = (cnt[c.id] || 0) + prof().errors[k].n; } });
+    return Object.entries(cnt).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([id, n]) => ({ c: chapters().find((x) => x.id === id), n }));
+  }
+  function viewGrammar() {
+    const weak = weakChapters(); const L = lvlIdx(prof().levels.grammar); const seen = doneMap('gramSeen');
+    $('#app').innerHTML = `<div class="card"><h1>📐 Grammaire</h1><p class="small muted">Règles courtes avec exemples, puis exercices ciblés.</p>
+        ${weak.length ? `<div class="passage"><b>🎯 Tes points faibles</b>${weak.map((w) => `<div class="row between small"><span>${esc(w.c.t)} <span class="muted">(${w.n} erreurs)</span></span><button class="btn small" data-act="gramOpen" data-arg="${w.c.id}">Revoir</button></div>`).join('')}</div>` : ''}</div>
+      ${['A1', 'A2', 'B1', 'B2', 'C1'].map((lv) => { const cs = chapters().filter((c) => c.l === lv); return cs.length ? `<div class="section-title">${lv}${lvlIdx(lv) === L ? ' · ton niveau' : ''}</div><div class="card"><ul class="list">${cs.map((c) => `<li class="row between"><span>${seen[c.id] ? '✓ ' : ''}${esc(c.t)}</span><button class="btn small ghost" data-act="gramOpen" data-arg="${c.id}">Ouvrir</button></li>`).join('')}</ul></div>` : ''; }).join('')}`;
+  }
+  function gramItems(c) { return P().gaps.filter((g) => c.topics.includes(g.t)); }
+  function gramOpen(id) {
+    const c = chapters().find((x) => x.id === id); if (!c) return;
+    doneMap('gramSeen')[c.id] = today(); save();
+    const n = gramItems(c).length; const showDe = state.settings.explain === 'de';
+    $('#app').innerHTML = `<div class="ex-head"><button class="x" data-act="go" data-arg="grammaire" aria-label="Retour">←</button><b style="flex:1">📐 ${esc(c.t)}</b><span class="chip">${c.l}</span></div>
+      <div class="card grammar">${c.fr}</div>
+      <div class="card expl ${showDe ? 'show-de' : ''}"><b>🇩🇪 Kurz gesagt</b><div class="de" style="display:block;border:0;padding:0">${esc(c.de)}</div></div>
+      ${n ? `<button class="btn primary block" data-act="gramPractice" data-arg="${c.id}">S’entraîner (${Math.min(8, n)} exercices)</button>` : ''}`;
+    window.scrollTo(0, 0);
+  }
+  function gramPractice(id) {
+    const c = chapters().find((x) => x.id === id);
+    const items = pickItems(gramItems(c), 'grammar', 8, 'gap:');
+    startMC(c.t, gapItems(0, items), {});
+  }
+  function gramLink(topic) { const c = chapterFor(topic); return c ? `<button class="btn small ghost" data-act="gramOpen" data-arg="${c.id}">📐 Voir la règle : ${esc(c.t)}</button>` : ''; }
+
+  /* ---------- Phrases à retenir ---------- */
+  function phrases() { const p = prof(); p.phrases = p.phrases || {}; p.phSrs = p.phSrs || {}; return p.phrases; }
+  const phId = (t) => 'ph' + Array.from(t).reduce((h, c) => ((h << 5) - h + c.charCodeAt(0)) | 0, 7).toString(36);
+  const pendingPhr = {}; let phSeq = 0;
+  function phraseBtn(text, src) {
+    text = String(text || '').trim(); if (!text) return '';
+    const k = 'q' + (++phSeq); pendingPhr[k] = { text, src };
+    const have = !!phrases()[phId(text)];
+    return `<button class="btn small ghost" data-act="addPhrase" data-arg="${k}" ${have ? 'disabled' : ''}>${have ? '📌 Déjà retenue' : '📌 Retenir cette phrase'}</button>`;
+  }
+  function addPhrase(k, el) {
+    const x = pendingPhr[k]; if (!x) return;
+    const id = phId(x.text); const ph = phrases();
+    if (ph[id]) { toast('Déjà dans tes phrases.'); return; }
+    ph[id] = { fr: x.text, src: x.src || '', date: today() }; save();
+    if (el) { el.disabled = true; el.textContent = '📌 Ajoutée'; }
+    toast('📌 Phrase ajoutée à « Phrases à retenir »');
+  }
+  function phDue() { const t = today(); phrases(); const s = prof().phSrs; return Object.keys(prof().phrases).filter((id) => !s[id] || s[id].due <= t); }
+  function clozeOf(text) {
+    const words = text.split(/\s+/);
+    const cand = words.map((w, i) => ({ i, core: w.replace(/^[«(“"']+|[.,!?;:»)”"]+$/g, '') }))
+      .filter((x) => x.core.replace(/^[a-zà-ÿ]+['’]/i, '').length >= 4);
+    if (!cand.length) return { text, hide: -1 };
+    cand.sort((a, b) => b.core.length - a.core.length);
+    const pick = cand[Math.floor(Math.random() * Math.min(3, cand.length))];
+    return { words, hide: pick.i };
+  }
+  function viewPhrases() {
+    const ph = phrases(); const ids = Object.keys(ph); const due = phDue();
+    $('#app').innerHTML = `<div class="card"><h1>📌 Phrases à retenir</h1>
+        <p class="small muted">Les phrases que tu as gardées (textes, dialogues, exercices). Elles reviennent comme des cartes à trous, au bon moment.</p>
+        ${due.length ? `<button class="btn primary block" data-act="phStart">Réviser (${Math.min(due.length, 12)})</button>` : ids.length ? '<p>Rien à réviser pour l’instant 👍</p>' : '<p>Aucune phrase pour l’instant. Touche « 📌 Retenir » dans les textes, dialogues et exercices.</p>'}</div>
+      ${ids.length ? `<div class="card"><ul class="list">${ids.map((id) => `<li class="small row between"><span>${esc(ph[id].fr)}<br><span class="muted">${esc(ph[id].src)}${prof().phSrs[id] ? ' · prochaine : ' + prof().phSrs[id].due : ' · nouvelle'}</span></span><button class="btn small ghost" data-act="phDel" data-arg="${id}" aria-label="Supprimer">🗑</button></li>`).join('')}</ul></div>` : ''}`;
+  }
+  function phStart() {
+    const ids = shuffle(phDue()).slice(0, 12);
+    if (!ids.length) { toast('Rien à réviser.'); return; }
+    session = { kind: 'phr', ids, k: 0, shown: false, xp: 0, good: 0, cl: null };
+    document.body.classList.add('in-session'); renderPhr();
+  }
+  function renderPhr() {
+    const s = session; const id = s.ids[s.k]; const ph = phrases()[id]; const pct = Math.round((s.k / s.ids.length) * 100);
+    if (!s.cl) s.cl = clozeOf(ph.fr);
+    const cl = s.cl;
+    const shown = cl.hide < 0 ? esc(ph.fr) : cl.words.map((w, i) => (i === cl.hide ? (s.shown ? `<span class="gapw">${esc(w)}</span>` : '<span class="gap">…</span>') : esc(w))).join(' ');
+    $('#app').innerHTML = `<div class="ex-head"><button class="x" data-act="quit" aria-label="Quitter">✕</button><div class="bar"><i style="width:${pct}%"></i></div><span class="small muted">${s.k + 1}/${s.ids.length}</span></div>
+      <div class="card flash"><span class="chip">📌 ${esc(ph.src || 'phrase')}</span><div class="prompt" style="text-align:center">${shown}</div>
+        ${s.shown ? audioBtns(ph.fr) : '<p class="small muted">Quel mot manque ? Dis-le à voix haute, puis vérifie.</p>'}</div>
+      ${s.shown ? `<div class="rate"><button class="btn" data-act="phRate" data-arg="0">À revoir</button><button class="btn" data-act="phRate" data-arg="1">Difficile</button><button class="btn primary" data-act="phRate" data-arg="2">Bien</button><button class="btn" data-act="phRate" data-arg="3">Facile</button></div>`
+        : '<button class="btn primary block" data-act="phReveal">Afficher</button>'}`;
+    if (s.shown) speak(ph.fr, false, true);
+  }
+  function phRate(r) {
+    const s = session; r = Number(r); const id = s.ids[s.k];
+    schedule(id, r, prof().phSrs);
+    s.again = s.again || {}; if (r === 0 && !s.again[id]) { s.again[id] = 1; s.ids.push(id); }
+    s.xp += r >= 2 ? 3 : 1; if (r >= 2) s.good++;
+    save(); s.k++; s.shown = false; s.cl = null;
+    if (s.k < s.ids.length) renderPhr(); else finishSession(s.good, s.ids.length, s.xp);
+  }
+
+  /* ---------- Aufnahme-Helfer (Sprechen) ---------- */
+  async function startRec(s) {
+    s.stream = s.stream || await navigator.mediaDevices.getUserMedia({ audio: true });
+    const chunks = []; const mr = new MediaRecorder(s.stream); s.rec = mr;
+    mr.ondataavailable = (e) => { if (e.data && e.data.size) chunks.push(e.data); };
+    s.recDone = new Promise((r) => { mr.onstop = () => { s.recUrl && URL.revokeObjectURL(s.recUrl); s.recUrl = URL.createObjectURL(new Blob(chunks, { type: mr.mimeType || 'audio/webm' })); r(); }; });
+    mr.start();
+  }
+
+  /* ---------- Parler librement ---------- */
+  function viewSpeak() {
+    const L = lvlIdx(prof().levels.vocab); const done = doneMap('speakDone');
+    const list = (pack().speaking || []).slice().sort((a, b) => Math.abs(lvlIdx(a.l) - L) - Math.abs(lvlIdx(b.l) - L));
+    $('#app').innerHTML = `<div class="card"><h1>🗨️ Parler librement</h1><p class="small muted">Un sujet, un chrono, ta voix enregistrée, puis une check-list pour t’évaluer.</p>
+        ${canRecord() ? '' : '<p class="small"><b>Enregistrement indisponible ici</b> – tu peux quand même parler avec le chrono.</p>'}</div>
+      <div class="grid">${list.map((x) => `<button class="tile" data-act="spOpen" data-arg="${x.id}"><b>${done[x.id] ? '✓ ' : ''}${esc(x.t)}</b><small>${x.l} · ${Math.round(x.secs / 60 * 10) / 10} min</small></button>`).join('')}</div>`;
+  }
+  function spOpen(id) {
+    const x = (pack().speaking || []).find((y) => y.id === id); if (!x) return;
+    session = { kind: 'speak', x, phase: 'prep', checks: {}, t0: 0, xp: 0 };
+    document.body.classList.add('in-session'); renderSpeak();
+  }
+  function renderSpeak() {
+    const s = session; const x = s.x; const left = s.phase === 'rec' ? Math.max(0, x.secs - Math.floor((Date.now() - s.t0) / 1000)) : x.secs;
+    const mmss = (n) => Math.floor(n / 60) + ':' + String(n % 60).padStart(2, '0');
+    $('#app').innerHTML = `<div class="ex-head"><button class="x" data-act="quit" aria-label="Quitter">✕</button><b style="flex:1">🗨️ ${esc(x.t)}</b><span class="chip">${x.l}</span></div>
+      <div class="card"><div class="prompt">${esc(x.fr)}</div><p class="small muted">🇩🇪 ${esc(x.de)}</p>
+        <details ${s.phase === 'prep' ? 'open' : ''}><summary class="small"><b>Expressions utiles</b></summary><ul class="small">${x.expr.map((e) => `<li>${esc(e)}</li>`).join('')}</ul></details></div>
+      <div class="card center">
+        <div class="big">${mmss(left)}</div>
+        ${s.phase === 'prep' ? `<button class="btn primary block" data-act="spGo">🎙️ ${canRecord() ? 'Commencer l’enregistrement' : 'Commencer'}</button><p class="small muted">Prends 30 secondes pour réfléchir, puis lance-toi.</p>` : ''}
+        ${s.phase === 'rec' ? '<div class="recbar">⏺️ Parle maintenant… <button class="btn small" data-act="spStop">⏹ Terminer</button></div>' : ''}
+        ${s.phase === 'done' ? `${s.recUrl ? '<button class="btn block" data-act="spPlay">▶ Réécouter ma réponse</button>' : ''}` : ''}
+      </div>
+      ${s.phase === 'done' ? `<div class="card"><b>Check-list</b>${x.check.map((c, i) => `<label class="check"><input type="checkbox" data-act="spCheck" data-arg="${i}" ${s.checks[i] ? 'checked' : ''}> ${esc(c)}</label>`).join('')}
+        <div class="btnrow" style="margin-top:10px"><button class="btn" data-act="spAgain">🔁 Recommencer</button><button class="btn primary" data-act="spFinish">${U('finish')}</button></div></div>` : ''}`;
+  }
+  async function spGo() {
+    const s = session;
+    if (canRecord()) { try { await startRec(s); } catch (e) { toast('Micro refusé – le chrono démarre quand même.'); } }
+    s.phase = 'rec'; s.t0 = Date.now(); renderSpeak();
+    s.timer = setInterval(() => { if (session !== s) { clearInterval(s.timer); return; } if (Date.now() - s.t0 >= s.x.secs * 1000) spStop(); else renderSpeak(); }, 1000);
+  }
+  async function spStop() {
+    const s = session; clearInterval(s.timer);
+    if (s.rec && s.rec.state !== 'inactive') { s.rec.stop(); await s.recDone; }
+    s.phase = 'done'; renderSpeak();
+  }
+  function spFinish() {
+    const s = session; const n = Object.values(s.checks).filter(Boolean).length;
+    doneMap('speakDone')[s.x.id] = today();
+    const log = (prof().speakLog = prof().speakLog || []); log.push({ id: s.x.id, date: today(), checks: n }); prof().speakLog = log.slice(-100);
+    endMedia(); finishSession(n, s.x.check.length, 8 + n * 3);
+  }
+
+  /* ---------- Écriture ---------- */
+  const wc = (t) => (t.trim().match(/\S+/g) || []).length;
+  function viewWrite() {
+    const L = lvlIdx(prof().levels.grammar); const drafts = doneMap('writing');
+    const list = (pack().writing || []).slice().sort((a, b) => Math.abs(lvlIdx(a.l) - L) - Math.abs(lvlIdx(b.l) - L));
+    $('#app').innerHTML = `<div class="card"><h1>✍️ Écriture</h1><p class="small muted">Écris, compare avec un texte modèle et vérifie avec la check-list${aiReady() ? ', ou fais corriger ton texte par Gemini ✨' : ''}.</p></div>
+      <div class="grid">${list.map((x) => `<button class="tile" data-act="wrOpen" data-arg="${x.id}"><b>${drafts[x.id] && drafts[x.id].done ? '✓ ' : drafts[x.id] ? '✏️ ' : ''}${esc(x.t)}</b><small>${x.l} · ${esc(x.type)} · ${x.words[0]}–${x.words[1]} mots</small></button>`).join('')}</div>`;
+  }
+  function wrOpen(id) {
+    const x = (pack().writing || []).find((y) => y.id === id); if (!x) return;
+    const d = doneMap('writing')[id] || {};
+    session = { kind: 'write', x, phase: 'edit', text: d.text || '', checks: {}, ai: null };
+    document.body.classList.add('in-session'); renderWrite();
+  }
+  function renderWrite() {
+    const s = session; const x = s.x; const n = wc(s.text);
+    let html = `<div class="ex-head"><button class="x" data-act="quit" aria-label="Quitter">✕</button><b style="flex:1">✍️ ${esc(x.t)}</b><span class="chip">${x.l}</span></div>
+      <div class="card"><div class="prompt" style="font-size:1.05rem">${esc(x.fr)}</div><p class="small muted">🇩🇪 ${esc(x.de)} · ${x.words[0]}–${x.words[1]} mots</p>
+        <details><summary class="small"><b>Expressions utiles</b></summary><ul class="small">${x.expr.map((e) => `<li>${esc(e)}</li>`).join('')}</ul></details></div>`;
+    if (s.phase === 'edit') {
+      html += `<textarea id="wrText" class="input" rows="10" placeholder="Écris ton texte ici…">${esc(s.text)}</textarea>
+        <div class="row between small muted" style="margin:6px 2px"><span id="wrCount">${n} mots</span><span>Brouillon enregistré automatiquement</span></div>
+        ${accentBar('wrText')}
+        <button class="btn primary block" style="margin-top:10px" data-act="wrDone">J’ai terminé</button>`;
+    } else {
+      html += `<div class="card"><b>Ton texte</b> <span class="small muted">(${n} mots)</span><div class="small" style="white-space:pre-wrap;margin-top:6px">${esc(s.text)}</div></div>
+        ${s.ai ? `<div class="card"><b>✨ Correction (IA)</b><div class="small" style="white-space:pre-wrap;margin:6px 0">${esc(s.ai.corrige)}</div>
+          ${(s.ai.erreurs || []).length ? `<ul class="list">${s.ai.erreurs.map((e) => `<li class="small expl ${state.settings.explain === 'de' ? 'show-de' : ''}"><s class="muted">${esc(e.avant)}</s> → <b>${esc(e.apres)}</b><br>${esc(e.fr)}<div class="de">🇩🇪 ${esc(e.de)}</div></li>`).join('')}</ul>` : ''}
+          <p class="small">${esc(s.ai.commentaire_fr)}</p><p class="small muted">🇩🇪 ${esc(s.ai.commentaire_de)}</p></div>`
+          : aiReady() ? '<button class="btn block" data-act="wrAi">✨ Faire corriger par Gemini</button>' : ''}
+        <div class="card"><details><summary><b>📄 Texte modèle</b></summary><div class="small" style="white-space:pre-wrap;margin-top:6px">${esc(x.model)}</div>${audioBtns(x.model)}</details></div>
+        <div class="card"><b>Check-list</b>${x.check.map((c, i) => `<label class="check"><input type="checkbox" data-act="wrCheck" data-arg="${i}" ${s.checks[i] ? 'checked' : ''}> ${esc(c)}</label>`).join('')}
+          <div class="btnrow" style="margin-top:10px"><button class="btn" data-act="wrEdit">✏️ Retravailler</button><button class="btn primary" data-act="wrFinish">${U('finish')}</button></div></div>`;
+    }
+    $('#app').innerHTML = html;
+    const ta = $('#wrText');
+    if (ta) ta.addEventListener('input', () => { s.text = ta.value; $('#wrCount').textContent = wc(ta.value) + ' mots'; const d = doneMap('writing'); d[x.id] = Object.assign(d[x.id] || {}, { text: ta.value, date: today() }); save(); });
+  }
+  function wrDone() { const s = session; if (wc(s.text) < 5) { toast('Écris d’abord un peu plus 🙂'); return; } s.phase = 'review'; renderWrite(); window.scrollTo(0, 0); }
+  const WR_SCHEMA = S('OBJECT', { properties: { corrige: STR, erreurs: S('ARRAY', { items: S('OBJECT', { properties: { avant: STR, apres: STR, fr: STR, de: STR }, required: ['avant', 'apres', 'fr', 'de'] }) }), commentaire_fr: STR, commentaire_de: STR }, required: ['corrige', 'erreurs', 'commentaire_fr', 'commentaire_de'] });
+  async function wrAi() {
+    const s = session; const x = s.x; const keep = s;
+    aiBusy('Gemini corrige ton texte…');
+    try {
+      const prompt = `${LEARNER_()}Task given to the learner (CEFR ${x.l}): "${x.fr}". Learner's ${LANG_EN()} text:\n"""${s.text}"""\nCorrect the text. "corrige": the corrected text, keeping the learner's ideas and style (only fix errors and very unnatural wording). "erreurs": up to 8 most important corrections (original fragment, corrected fragment, short explanation in ${LANG_EN()} and German). "commentaire_fr": 2–3 encouraging, concrete sentences (strengths, what to improve, whether the task was fulfilled); "commentaire_de": the same in German.`;
+      const r = await aiGenerate({ contents: [{ role: 'user', parts: [{ text: prompt }] }], schema: WR_SCHEMA, temperature: 0.3 });
+      session = keep; keep.ai = r; document.body.classList.add('in-session'); renderWrite();
+    } catch (e) { session = keep; document.body.classList.add('in-session'); renderWrite(); toast(aiErrorText(e)); }
+  }
+  function wrFinish() {
+    const s = session; const n = Object.values(s.checks).filter(Boolean).length;
+    const d = doneMap('writing'); d[s.x.id] = Object.assign(d[s.x.id] || {}, { text: s.text, done: today() }); save();
+    finishSession(n, s.x.check.length, 10 + n * 3 + Math.min(10, Math.floor(wc(s.text) / 20)));
+  }
+
+  /* ---------- Radio ---------- */
+  function viewRadio() {
+    const R = pack().radio; if (!R) { $('#app').innerHTML = '<div class="card">Pas encore disponible.</div>'; return; }
+    const L = lvlIdx(prof().levels.listening); const log = prof().radioLog || [];
+    const srcs = R.sources.slice().sort((a, b) => Math.abs(lvlIdx(a.l) - L) - Math.abs(lvlIdx(b.l) - L));
+    $('#app').innerHTML = `<div class="card"><h1>📻 Radio</h1><p class="small muted" data-notr>${esc(R.intro || '')}</p>${R.introDe ? `<p class="small muted" data-notr>🇩🇪 ${esc(R.introDe)}</p>` : ''}
+        <details class="small"><summary><b>Méthode</b></summary>${R.tips.map((t) => `<p><b>${esc(t[0])}</b> – ${esc(t[1])}<br><span class="muted">🇩🇪 ${esc(t[2])}</span></p>`).join('')}</details></div>
+      <div class="card"><ul class="list">${srcs.map((x, i) => `<li><div class="row between"><b>${esc(x.name)}</b><span class="chip">${x.l}${lvlIdx(x.l) <= L ? ' ✓' : ''}</span></div><div class="small muted">${esc(x.desc)}</div>
+        <div class="btnrow" style="margin-top:6px"><a class="btn small" href="${esc(x.url)}" target="_blank" rel="noopener">🎧 Ouvrir</a><button class="btn small primary" data-act="radioLog" data-arg="${i}">📝 Fiche d’écoute</button></div></li>`).join('')}</ul>
+        <p class="small muted">Un lien ne fonctionne plus ? Dis-le-moi, je le mettrai à jour.</p></div>
+      ${log.length ? `<div class="card"><details><summary><b>Journal d’écoute (${log.length})</b></summary><ul class="list">${log.slice().reverse().slice(0, 30).map((e) => `<li class="small"><b>${esc(e.src)}</b> · ${e.date} · ${e.min} min · compris ${e.pct} %<br>${esc(e.sum || '')}</li>`).join('')}</ul></details></div>` : ''}`;
+    ui.radioSrcs = srcs;
+  }
+  function radioLog(i) {
+    const x = ui.radioSrcs[Number(i)];
+    $('#app').innerHTML = `<div class="ex-head"><button class="x" data-act="go" data-arg="radio" aria-label="Retour">←</button><b style="flex:1">📝 Fiche d’écoute</b></div>
+      <div class="card"><b>${esc(x.name)}</b>
+        <div class="field"><label class="small">Sujet / titre de l’émission</label><input id="rTitle" class="input" placeholder="p. ex. Les glaciers en danger"></div>
+        <div class="field"><label class="small">Durée d’écoute</label><div class="chips">${[3, 5, 10, 20].map((m) => `<button class="chipbtn ${m === 5 ? 'on' : ''}" data-act="rMin" data-arg="${m}">${m} min</button>`).join('')}</div></div>
+        <div class="field"><label class="small">Mots ou expressions entendus (fr = de)</label>${[0, 1, 2, 3, 4].map((k) => `<div class="row" style="margin-bottom:6px"><input class="input rw" data-k="${k}" placeholder="mot français"><input class="input rd" data-k="${k}" placeholder="Deutsch (optional)"></div>`).join('')}</div>
+        <div class="field"><label class="small">Résumé en 1–3 phrases (en français)</label><textarea id="rSum" class="input" rows="3"></textarea></div>
+        <div class="field"><label class="small">J’ai compris environ…</label><div class="chips">${[25, 50, 75, 100].map((p) => `<button class="chipbtn ${p === 50 ? 'on' : ''}" data-act="rPct" data-arg="${p}">${p} %</button>`).join('')}</div></div>
+        <button class="btn primary block" data-act="radioSave" data-arg="${i}">Enregistrer</button></div>`;
+    ui.rMin = 5; ui.rPct = 50;
+  }
+  function radioSave(i) {
+    const x = ui.radioSrcs[Number(i)]; const words = [];
+    document.querySelectorAll('.rw').forEach((el) => { const fr = el.value.trim(); const de = (document.querySelector(`.rd[data-k="${el.dataset.k}"]`).value || '').trim(); if (fr) words.push([fr, de]); });
+    let added = 0; words.forEach(([fr, de]) => { if (de && addCustomWord(fr, de, ($('#rTitle').value || x.name))) added++; });
+    const p = prof(); p.radioLog = (p.radioLog || []).concat({ src: x.name, title: $('#rTitle').value.trim(), date: today(), min: ui.rMin, pct: ui.rPct, sum: $('#rSum').value.trim(), words: words.map((w) => w[0]) }).slice(-200);
+    const xp = 6 + ui.rMin + words.length * 2 + ($('#rSum').value.trim() ? 5 : 0);
+    save(); addXP(xp);
+    toast(`📻 Fiche enregistrée · +${xp} XP${added ? ' · ' + added + ' mots ajoutés' : ''}`);
+    location.hash = '#radio'; viewRadio();
+  }
+
   /* ---------- Routing ---------- */
   function goHome() {
     if (location.hash === '#home' || !location.hash) route(); else location.hash = '#home';
   }
   function route() {
+    if (!state.chosen) { viewPicker(); return; }
     const h = (location.hash || '#home').slice(1);
     if (session && h !== 'run') { endMedia(); session = null; test = null; document.body.classList.remove('in-session'); }
     if ('speechSynthesis' in window) speechSynthesis.cancel();
@@ -1723,6 +2133,11 @@ Give feedback on the LEARNER's French only: "bilan_fr" = 2–3 encouraging, conc
       case 'conjugaison': viewConj(); break;
       case 'nombres': viewNumbers(); break;
       case 'shadowing': viewShadow(); break;
+      case 'grammaire': viewGrammar(); break;
+      case 'phrases': viewPhrases(); break;
+      case 'parler': viewSpeak(); break;
+      case 'ecriture': viewWrite(); break;
+      case 'radio': viewRadio(); break;
       case 'vocab': startVocab(); break;
       case 'gaps': startMC(U('gaps'), gapItems(cfg.gaps + 2)); break;
       case 'quiz': startMC(U('quiz'), quizItems(cfg.quiz + 2)); break;
@@ -1744,13 +2159,15 @@ Give feedback on the LEARNER's French only: "bilan_fr" = 2–3 encouraging, conc
     toggleDe: (_, el) => el.closest('.expl').classList.toggle('show-de'),
     mission: (i) => runMission(i),
     testStart, errStart, testSkip, toggleAudio,
+    pickLang: (k) => { if (packs[k]) state.lang = k; state.chosen = true; save(); document.body.classList.remove('in-session'); pickVoice(); retranslate(); location.hash = '#home'; route(); renderTop(); },
+    uiDe: () => { state.settings.uiDe = state.settings.uiDe ? '' : '1'; save(); retranslate(); renderTop(); },
     set: (arg) => {
       const [k, v] = arg.split('=');
       if (k === 'lang') { if (packs[v]) state.lang = v; }
       else state.settings[k] = k === 'minutes' ? Number(v) : k === 'rate' ? Number(v) : v;
-      save(); applyTheme(); if (k === 'lang') pickVoice(); if (location.hash === '#reglages') viewSettings(); else route(); renderTop();
+      save(); applyTheme(); if (k === 'lang') { pickVoice(); retranslate(); } if (location.hash === '#reglages') viewSettings(); else route(); renderTop(); if (k === 'uiDe' || k === 'lang') retranslate();
     },
-    testVoice: () => speak('Bonjour ! On apprend le français ensemble ?'),
+    testVoice: () => speak(META().voiceTest || 'Bonjour !'),
     exportCopy: () => { const t = JSON.stringify(state); if (navigator.clipboard) navigator.clipboard.writeText(t).then(() => toast('Copié ✓ – colle-le dans une note ou un e-mail.'), () => { $('#importBox').value = t; toast('Copie impossible : texte affiché ci-dessous.'); }); else { $('#importBox').value = t; } },
     exportFile: () => { try { const b = new Blob([JSON.stringify(state, null, 1)], { type: 'application/json' }); const a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = 'lingua-sauvegarde-' + today() + '.json'; document.body.appendChild(a); a.click(); a.remove(); } catch (e) { toast('Téléchargement impossible ici – utilise « Copier ».'); } },
     importText: () => importData($('#importBox').value),
@@ -1760,6 +2177,19 @@ Give feedback on the LEARNER's French only: "bilan_fr" = 2–3 encouraging, conc
     rTopic: (k) => { ui.rTopic = k; viewReading(); }, rType: (k) => { ui.rType = k; viewReading(); }, gFocus: (k) => { ui.gFocus = k; viewAiGaps(); },
     textStart: (id) => startText(id), dlgStart: (id) => startGuided(id), phoneStart: (id) => startGuided(id, { phone: true }),
     dlgPick, dlgWrite, dlgRate, dlgNext, dlgFinish, dlgShowText: () => { session.showText = true; renderGuided(false); },
+    gramOpen, gramPractice, addPhrase, phStart, phRate,
+    phReveal: () => { session.shown = true; renderPhr(); },
+    phDel: (id) => { delete phrases()[id]; delete prof().phSrs[id]; save(); viewPhrases(); },
+    spOpen, spGo, spStop, spFinish,
+    spPlay: () => { if (session.recUrl) playUrl(session.recUrl); },
+    spCheck: (i) => { session.checks[i] = !session.checks[i]; renderSpeak(); },
+    spAgain: () => { const s = session; if (s.recUrl) { URL.revokeObjectURL(s.recUrl); s.recUrl = null; } s.phase = 'prep'; s.checks = {}; renderSpeak(); },
+    wrOpen, wrDone, wrAi, wrFinish,
+    wrEdit: () => { session.phase = 'edit'; renderWrite(); },
+    wrCheck: (i) => { session.checks[i] = !session.checks[i]; renderWrite(); },
+    radioLog, radioSave,
+    rMin: (m, el) => { ui.rMin = Number(m); el.parentElement.querySelectorAll('.chipbtn').forEach((b) => b.classList.remove('on')); el.classList.add('on'); },
+    rPct: (v, el) => { ui.rPct = Number(v); el.parentElement.querySelectorAll('.chipbtn').forEach((b) => b.classList.remove('on')); el.classList.add('on'); },
     accent: insertAccent, cTense: (k) => { ui.cTense = k; viewConj(); }, conjStart, conjCheck, conjNext,
     nVar: (k) => { ui.nVar = k; viewNumbers(); }, numStart, numCheck, numPick, numNext,
     shTab: (k) => { ui.shTab = k; viewShadow(); }, shStart, shListen, shEcho, shSimul, shStop, shMine, shCompare, shRate,
@@ -1800,9 +2230,12 @@ Give feedback on the LEARNER's French only: "bilan_fr" = 2–3 encouraging, conc
   }
 
   /* ---------- Start ---------- */
+  if (!state.chosen && Object.keys(state.profiles || {}).length) { state.chosen = true; save(); }
   applyTheme();
+  trObs.observe(document.body, { childList: true, subtree: true, characterData: true });
+  retranslate();
   window.addEventListener('hashchange', route);
   route();
   registerSW();
-  window.__lingua = { get state() { return state; }, get session() { return session; }, P, estimate, aiConf }; // für Tests/Debugging
+  window.__lingua = { get state() { return state; }, get session() { return session; }, P, estimate, aiConf, retranslate, trString }; // für Tests/Debugging
 })();

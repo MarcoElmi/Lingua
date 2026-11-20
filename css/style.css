@@ -204,3 +204,25 @@ button.pill{cursor:pointer;color:var(--ink)}
 .shadow-btns{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:12px}
 .shadow-btns .btn{padding:10px 6px;font-size:.92rem}
 .recbar{margin-top:10px;padding:10px;border-radius:12px;background:var(--bad-soft);display:flex;justify-content:space-between;align-items:center;animation:pulse 1.2s infinite}
+/* v1.6 */
+.ladder{display:flex;gap:6px;flex-wrap:wrap}
+.ladder span{border:1px solid var(--line);border-radius:99px;padding:4px 12px;font-weight:600;font-size:.88rem;color:var(--muted)}
+.ladder span.done{background:var(--good-soft);color:var(--good);border-color:transparent}
+.ladder span.cur{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.grammar table{width:100%;border-collapse:collapse;margin:10px 0;font-size:.88rem}
+.grammar th,.grammar td{border:1px solid var(--line);padding:6px 8px;text-align:left;vertical-align:top}
+.grammar th{background:var(--accent-soft)}
+.grammar u{text-decoration:none;color:var(--accent);font-weight:600}
+.grammar p{line-height:1.6}
+.check{display:flex;gap:10px;align-items:flex-start;padding:8px 0;border-bottom:1px solid var(--line);font-size:.95rem}
+.check input{width:20px;height:20px;margin-top:2px;flex:none}
+.gapw{color:var(--accent);font-weight:700;border-bottom:2px solid var(--accent)}
+/* v2.0 */
+#dePill{font-weight:700;font-size:.8rem}
+#dePill.on{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.tile.picker{width:100%;margin-bottom:10px;flex-direction:row;align-items:center;gap:14px;min-height:80px}
+.tile.picker .ic{font-size:2.2rem}
+.tile.picker b{font-size:1.2rem}
+#brandName{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}.brand{min-width:0}
+.pill{white-space:nowrap}
+@media (max-width:440px){.topbar .pill{padding:3px 7px;font-size:.82rem}.brand{font-size:.95rem;gap:6px}.topbar .logo{width:24px;height:24px;font-size:.85rem}}

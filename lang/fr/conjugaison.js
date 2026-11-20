@@ -8,7 +8,18 @@
     { id: 'imp', name: 'imparfait', de: 'Imperfekt', l: 'B1' },
     { id: 'fut', name: 'futur simple', de: 'Futur', l: 'B1' },
     { id: 'cond', name: 'conditionnel présent', de: 'Konditional', l: 'B1' },
-    { id: 'subj', name: 'subjonctif présent', de: 'Subjonctif', l: 'B2' }
+    { id: 'subj', name: 'subjonctif présent', de: 'Subjonctif', l: 'B2' },
+    { id: 'pqp', name: 'plus-que-parfait', de: 'Plusquamperfekt', l: 'B2' },
+    { id: 'futant', name: 'futur antérieur', de: 'Futur II', l: 'C1' },
+    { id: 'condp', name: 'conditionnel passé', de: 'Konditional Perfekt', l: 'C1' }
+  ];
+  /* Stufen für den adaptiven Modus: neue Zeiten pro Stufe, Verben bis Niveau */
+  const STAGES = [
+    { l: 'A1', tenses: ['pres'], verbs: ['être', 'avoir', 'aller', 'faire', 'pouvoir', 'vouloir', 'venir', 'prendre', 'parler', 'travailler', 'aimer', 'habiter', 'manger', 'finir', 'dire'] },
+    { l: 'A2', tenses: ['pc', 'imp'], verbLevel: 'A2' },
+    { l: 'B1', tenses: ['fut', 'cond'], verbLevel: 'B1' },
+    { l: 'B2', tenses: ['subj', 'pqp'], verbLevel: 'B2' },
+    { l: 'C1', tenses: ['futant', 'condp'], verbLevel: 'B2' }
   ];
   const V = [];
   const add = (v) => { V.push(v); return v; };
@@ -79,6 +90,7 @@
 
   const END = { imp: ['ais', 'ais', 'ait', 'ions', 'iez', 'aient'], fut: ['ai', 'as', 'a', 'ons', 'ez', 'ont'], subj: ['e', 'es', 'e', 'ions', 'iez', 'ent'] };
   const AUX = { avoir: 'ai as a avons avez ont'.split(' '), 'être': 'suis es est sommes êtes sont'.split(' ') };
+  const COMPOUND = { pc: 'pres', pqp: 'imp', futant: 'fut', condp: 'cond' };
   const vowel = (s) => /^[aeiouyéèêâîôûh]/i.test(s);
   /* liefert für Verb + Zeit 6 Einträge: { pron, form, accept[] } */
   function conjugate(v, t) {
@@ -90,8 +102,9 @@
       else if (t === 'fut') { form = v.fut + END.fut[i]; if (v.futAlt) acc.push(v.futAlt + END.fut[i]); }
       else if (t === 'cond') { form = v.fut + END.imp[i]; if (v.futAlt) acc.push(v.futAlt + END.imp[i]); }
       else if (t === 'subj') form = v.subj ? v.subj[i] : ((i === 3 || i === 4) ? v.s2 : v.s1) + END.subj[i];
-      else if (t === 'pc') {
-        const aux = AUX[v.aux][i]; let pp = v.pp;
+      else if (COMPOUND[t]) {
+        const auxV = V.find((x) => x.inf === v.aux);
+        const aux = COMPOUND[t] === 'pres' ? AUX[v.aux][i] : conjugate(auxV, COMPOUND[t])[i].form; let pp = v.pp;
         if (v.aux === 'être') {
           const pl = (x) => (/s$/.test(x) ? x : x + 's');
           const variants = i === 2 ? [pp, pp + 'e'] : i === 3 || i === 5 ? [pl(pp), pp + 'es'] : i === 4 ? [pp, pp + 'e', pl(pp), pp + 'es'] : [pp, pp + 'e'];
@@ -108,5 +121,5 @@
     }
     return out;
   }
-  F.conj = { tenses: TENSES, verbs: V, conjugate, pronouns: PRON };
+  F.conj = { tenses: TENSES, verbs: V, conjugate, pronouns: PRON, stages: STAGES };
 })();

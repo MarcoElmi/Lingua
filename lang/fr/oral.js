@@ -31,7 +31,7 @@
     return r === 0 ? tw : tw + ' ' + below1000(r, v);
   }
   const MONTHS = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
-  F.numbers = { words, months: MONTHS, currency: ['franc', 'francs'], cents: 'centimes' };
+  F.numbers = { words, months: MONTHS, variants: true };
 
   /* Lautgruppen: Wörter und kurze Sätze zum Nachsprechen */
   F.sounds = [

@@ -8,6 +8,10 @@ window.LINGUA_PACKS.fr = {
     name: 'Français',
     flag: '🇫🇷',
     tts: ['fr-FR', 'fr-CH', 'fr-BE', 'fr-CA'],
+    english: 'French', deName: 'Französisch', winLang: 'Français (Suisse oder France)', voiceTest: 'Bonjour ! On apprend le français ensemble ?',
+    aiContext: 'They live near the French-speaking region (Romandie).', regionName: 'Suisse romande', regionTheme: 'suisse', fauxRx: 'Faux ami',
+    regionRx: 'Suisse|romand|Romand|Fribourg|Gruyère|Bénichon|Léman|Sarine|Röstigraben|septante|nonante|huitante|natel|bancomat|votation|panosse|cornet|syndic|pendulaire|Confédéré|tournus|piquet|régie|course d’école',
+    defaultLevel: 'B1', testLevels: ['A2', 'B1', 'B2', 'C1'], testStart: 'B1', packName: 'Paquet 1 (décembre 2026)',
     sources: [ // für das spätere Radio-Modul
       { name: 'RTS La Première', kind: 'radio' },
       { name: 'RTS Espace 2', kind: 'radio' },
