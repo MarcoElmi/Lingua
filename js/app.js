@@ -7,7 +7,7 @@
   const LEVELS = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
   const SKILLS = ['vocab', 'grammar', 'reading', 'listening'];
   const STORE_KEY = 'lingua.state.v1';
-  const APP_VERSION = '2.0.0';
+  const APP_VERSION = '2.2.0';
   const MINUTES = { 5: { cards: 6, gaps: 4, quiz: 4, goal: 40, newMax: 5 }, 10: { cards: 10, gaps: 6, quiz: 6, goal: 70, newMax: 8 }, 15: { cards: 15, gaps: 8, quiz: 8, goal: 100, newMax: 12 } };
 
   const $ = (s, el = document) => el.querySelector(s);
@@ -16,6 +16,8 @@
   const pad = (n) => String(n).padStart(2, '0');
   const dateStr = (d) => d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
   const today = () => dateStr(new Date());
+  const daysSince = (d) => (d ? Math.floor((new Date(today()) - new Date(d)) / 86400000) : 0);
+  const BACKUP_DAYS = 30;   // Erinnerung, wenn die letzte Sicherung so lange zurückliegt
   const addDays = (ds, n) => { const d = new Date(ds + 'T12:00:00'); d.setDate(d.getDate() + n); return dateStr(d); };
   const shuffle = (a) => { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -167,7 +169,7 @@
     if (state.settings.voiceName) voice = vs.find((v) => v.name === state.settings.voiceName) || null;
     if (!voice) for (const p of P().meta.tts) { voice = vs.find((v) => v.lang.replace('_', '-').toLowerCase() === p.toLowerCase()); if (voice) break; }
     if (!voice) voice = vs[0] || null; // nie eine Stimme einer anderen Sprache verwenden
-    if (location.hash === '#reglages' && !session && document.getElementById('voiceBox')) viewSettings();
+    try { if (location.hash === '#reglages' && !session && document.getElementById('voiceBox')) viewSettings(); } catch (e) { /* beim Start noch nicht bereit */ }
   }
   if ('speechSynthesis' in window) { pickVoice(); speechSynthesis.onvoiceschanged = pickVoice; }
   function speak(text, slow, quiet) {
@@ -503,8 +505,16 @@
       <details class="small muted" style="margin-top:12px"><summary>Auf Deutsch</summary>Der Test prüft Wortschatz, Grammatik, Lese- und Hörverstehen getrennt (je ${TEST_PER_SKILL} Fragen, ca. 8–10 Minuten). Die Fragen passen sich deinen Antworten an. Du kannst ihn jederzeit wiederholen.</details>
     </div>`;
   }
+  // Wiederholter Test: beim bisherigen Niveau der Fertigkeit beginnen (eine Stufe tiefer), sonst beim Startniveau des Pakets
+  function testStartLevel(si) {
+    const TL = META().testLevels || LEVELS; const base = META().testStart || 'B1';
+    const p = prof(); const cur = p.tested && p.levels && p.levels[SKILLS[si]];
+    if (!cur) return base;
+    const L = LEVELS[Math.max(0, lvlIdx(cur) - 1)];
+    return TL.includes(L) ? L : base;
+  }
   function testStart() {
-    test = { s: 0, level: META().testStart || 'B1', asked: new Set(), rec: [], results: {} };
+    test = { s: 0, level: testStartLevel(0), asked: new Set(), rec: [], results: {} };
     document.body.classList.add('in-session');
     testNext();
   }
@@ -571,7 +581,7 @@
   }
   function testSkillDone(keep) {
     test.results[SKILLS[test.s]] = keep || estimate(test.rec);
-    test.s++; test.rec = []; test.level = META().testStart || 'B1';
+    test.s++; test.rec = []; test.level = testStartLevel(test.s);
     if (test.s < SKILLS.length) { testNext(); return; }
     // Ergebnis
     const res = test.results; const idx = SKILLS.map((s) => lvlIdx(res[s]));
@@ -620,6 +630,7 @@
     const due = dueCards().length; const errN = Object.keys(p.errors).length;
     const pl = playerLevel();
     $('#app').innerHTML = `
+      ${backupDue() ? `<div class="card warn" id="backupNote"><h2>💾 Sauvegarde</h2><p class="small">${state.lastBackup ? `Dernière sauvegarde il y a ${daysSince(state.lastBackup)} jours.` : 'Tu n’as encore jamais sauvegardé ta progression.'}</p><p class="small muted">Ta progression est enregistrée uniquement sur cet appareil. Une sauvegarde te protège si les données du navigateur sont effacées.</p><div class="btnrow"><button class="btn small primary" data-act="backupNow">Sauvegarder maintenant</button><button class="btn small" data-act="backupLater">Plus tard</button></div></div>` : ''}
       ${!p.tested ? `<div class="card"><h2>Bienvenue 👋</h2><p>Commence par le test de niveau : l’app adaptera ensuite tous les exercices à tes compétences.</p><a class="btn primary block" href="#test">${U('test')}</a></div>` : ''}
       <div class="card accent">
         <div class="row between"><h2 style="margin:0">🎯 ${U('mission')}</h2><span>${doneN}/3</span></div>
@@ -750,7 +761,8 @@
           <p>Firefox nutzt die Stimmen des Betriebssystems; Chrome bringt teils eigene Online-Stimmen mit.</p></details>
       </div>
       ${aiSettingsCard()}
-      <div class="card"><h2>Sauvegarde</h2>
+      <div class="card" id="backupCard"><h2>Sauvegarde</h2>
+        <p class="small">${state.lastBackup ? 'Dernière sauvegarde : ' + state.lastBackup : 'Aucune sauvegarde pour l’instant.'}</p>
         <p class="small muted">Ta progression est enregistrée uniquement sur cet appareil${memoryOnly ? ' – <b>attention : le stockage est indisponible ici, la progression sera perdue en fermant la page</b>' : ''}. Exporte-la de temps en temps.</p>
         <div class="btnrow"><button class="btn small" data-act="exportCopy">Copier la sauvegarde</button><button class="btn small" data-act="exportFile">Télécharger</button></div>
         <div class="field"><label class="small">Importer (coller ici ou choisir un fichier)</label><textarea id="importBox" placeholder="{ … }"></textarea>
@@ -762,6 +774,13 @@
     const am = $('#aiModel'); if (am) am.addEventListener('change', () => aiSetModel(am.value));
     const f = $('#importFile'); if (f) f.addEventListener('change', (e) => { const file = e.target.files[0]; if (!file) return; file.text().then(importData); });
   }
+  /* Sicherungs-Erinnerung: erst nach etwas Fortschritt, dann alle 30 Tage (Später = 7 Tage Ruhe) */
+  function backupDue() {
+    if ((state.xp || 0) < 50) return false;
+    if (state.backupSnooze && today() < state.backupSnooze) return false;
+    return daysSince(state.lastBackup || state.firstUse) >= BACKUP_DAYS;
+  }
+  function backupDone() { state.lastBackup = today(); state.backupSnooze = null; save(); const c = $('#backupCard p'); if (c) c.textContent = 'Dernière sauvegarde : ' + state.lastBackup; }
   function importData(txt) {
     try {
       const s = JSON.parse(txt); if (!s || !s.profiles || !s.settings) throw new Error('format');
@@ -1243,9 +1262,9 @@
     const pad2 = (n) => String(n).padStart(2, '0'); const F = N.fmt || {};
     if (type === 'num') { const n = L <= 1 ? (Math.random() < 0.6 ? rnd(60, 99) : rnd(11, 59)) : L === 2 ? (Math.random() < 0.5 ? rnd(60, 99) : rnd(100, 999)) : rnd(100, 99999); return { label: 'Nombre', say: w(n), ans: String(n), check: 'digits' }; }
     if (type === 'year') { const n = rnd(1950, 2035); return { label: 'Année', say: F.year ? F.year(n, w) : 'en ' + w(n), ans: String(n), check: 'digits' }; }
-    if (type === 'price') { const f = rnd(1, L <= 1 ? 99 : 450), c = rnd(0, 19) * 5; return { label: 'Prix (CHF)', say: F.price ? F.price(f, c, w) : (f === 1 ? 'un franc' : w(f) + ' francs') + (c ? ' ' + w(c) : ''), ans: f + '.' + pad2(c), check: 'price' }; }
+    if (type === 'price') { const f = rnd(1, L <= 1 ? 99 : 450), c = rnd(0, 19) * 5; return { label: 'Prix (' + (META().currency || 'CHF') + ')', say: F.price ? F.price(f, c, w) : (f === 1 ? 'un franc' : w(f) + ' francs') + (c ? ' ' + w(c) : ''), ans: f + '.' + pad2(c), check: 'price' }; }
     if (type === 'phone') {
-      const d = '07' + rnd(5, 9) + ' ' + rnd(100, 999) + ' ' + pad2(rnd(0, 99)) + ' ' + pad2(rnd(0, 99));
+      const d = F.phoneMake ? F.phoneMake(rnd, pad2) : '07' + rnd(5, 9) + ' ' + rnd(100, 999) + ' ' + pad2(rnd(0, 99)) + ' ' + pad2(rnd(0, 99));
       const say = F.phone ? F.phone(d.split(' '), w) : d.split(' ').map((g) => (g[0] === '0' ? 'zéro ' + w(Number(g)) : w(Number(g)))).join(', ');
       return { label: 'Numéro de téléphone', say, ans: d, check: 'digits' };
     }
@@ -2168,9 +2187,11 @@ Give feedback on the LEARNER's ${LANG_EN()} only: "bilan_fr" = 2–3 encouraging
       save(); applyTheme(); if (k === 'lang') { pickVoice(); retranslate(); } if (location.hash === '#reglages') viewSettings(); else route(); renderTop(); if (k === 'uiDe' || k === 'lang') retranslate();
     },
     testVoice: () => speak(META().voiceTest || 'Bonjour !'),
-    exportCopy: () => { const t = JSON.stringify(state); if (navigator.clipboard) navigator.clipboard.writeText(t).then(() => toast('Copié ✓ – colle-le dans une note ou un e-mail.'), () => { $('#importBox').value = t; toast('Copie impossible : texte affiché ci-dessous.'); }); else { $('#importBox').value = t; } },
-    exportFile: () => { try { const b = new Blob([JSON.stringify(state, null, 1)], { type: 'application/json' }); const a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = 'lingua-sauvegarde-' + today() + '.json'; document.body.appendChild(a); a.click(); a.remove(); } catch (e) { toast('Téléchargement impossible ici – utilise « Copier ».'); } },
+    exportCopy: () => { const t = JSON.stringify(state); if (navigator.clipboard) navigator.clipboard.writeText(t).then(() => { backupDone(); toast('Copié ✓ – colle-le dans une note ou un e-mail.'); }, () => { $('#importBox').value = t; toast('Copie impossible : texte affiché ci-dessous.'); }); else { $('#importBox').value = t; } },
+    exportFile: () => { try { const b = new Blob([JSON.stringify(state, null, 1)], { type: 'application/json' }); const a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = 'lingua-sauvegarde-' + today() + '.json'; document.body.appendChild(a); a.click(); a.remove(); backupDone(); } catch (e) { toast('Téléchargement impossible ici – utilise « Copier ».'); } },
     importText: () => importData($('#importBox').value),
+    backupNow: () => { location.hash = '#reglages'; setTimeout(() => { const c = $('#backupCard'); if (c) { c.scrollIntoView({ behavior: 'smooth', block: 'start' }); c.classList.add('hl'); setTimeout(() => c.classList.remove('hl'), 2500); } }, 250); },
+    backupLater: () => { state.backupSnooze = dateStr(new Date(Date.now() + 7 * 86400000)); save(); viewHome(); },
     reset: () => { $('#resetBox').innerHTML = `<p class="small">Supprimer toute la progression ?</p><div class="btnrow"><button class="btn small" data-act="resetNo">Annuler</button><button class="btn small primary" data-act="resetYes">Oui, tout supprimer</button></div>`; },
     resetNo: () => { $('#resetBox').innerHTML = ''; },
     resetYes: () => { state = defaultState(); save(); applyTheme(); toast('Réinitialisé.'); location.hash = '#home'; route(); },
@@ -2231,6 +2252,8 @@ Give feedback on the LEARNER's ${LANG_EN()} only: "bilan_fr" = 2–3 encouraging
 
   /* ---------- Start ---------- */
   if (!state.chosen && Object.keys(state.profiles || {}).length) { state.chosen = true; save(); }
+  // Bestehende Nutzer mit Fortschritt, aber ohne Sicherung: Erinnerung gleich nach dem Update zeigen
+  if (!state.firstUse) { state.firstUse = (state.xp || 0) >= 50 && !state.lastBackup ? dateStr(new Date(Date.now() - BACKUP_DAYS * 86400000)) : today(); save(); }
   applyTheme();
   trObs.observe(document.body, { childList: true, subtree: true, characterData: true });
   retranslate();

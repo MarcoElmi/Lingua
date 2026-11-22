@@ -1,0 +1,80 @@
+/* Dänisch – Monatspaket 1 (B1–C1): geführte Dialoge. Schwerpunkt Eltern–Kind, Familie, Tiere.
+   In den Eltern–Kind-Dialogen spricht das Kind; du antwortest als Elternteil.
+   Die falschen Antworten sind teils grammatisch falsch, teils sprachpädagogisch ungünstig. Nur anhängen. */
+(function () {
+  const P = window.LINGUA_PACKS.da;
+  const D = (id, l, ic, t, intro, tel, steps, end) => ({ id, l, ic, t, intro, tel,
+    steps: steps.map(([p, a, w, fr, de]) => ({ p, a, o: [a].concat(w), fr, de })), end });
+  P.dialogues = (P.dialogues || []).concat([
+    D('dm1d01', 'B1', '🌅', 'Morgenmad med Ella (3 år)', 'Din datter svarer tit på tysk. Du bliver ved med at tale dansk – venligt og uden at rette.', false, [
+      ['Mama, ich will Cornflakes!', 'Vil du have cornflakes? Ja, det må du gerne. Med mælk?', ['Nein, wir sprechen Dänisch!', 'Du skal sige det på dansk, ellers får du ingenting.'], 'Omformulér på dansk, og fortsæt samtalen – uden pres.', 'Aussage auf Dänisch aufgreifen und weiterreden, ohne Druck.'],
+      ['Ja, mit Milch. Viel Milch!', 'Meget mælk! Sådan her? Sig stop, når det er nok.', ['Mange mælk! Sig stop.', 'Viel Milch, okay.'], 'Mælk er utælleligt: meget mælk (ikke « mange »).', 'Unzählbar: «meget mælk», nicht «mange».'],
+      ['Stop!', 'Stop! Værsgo. Hvad skal vi lave i dag, tror du?', ['Stop! Værsgo. Hvad vi skal lave i dag?', 'Gut gemacht!'], 'Spørgsmål: verbet før subjektet – Hvad skal vi lave?', 'Frage: Verb vor Subjekt.'],
+      ['Spielplatz?', 'Ja, vi skal på legepladsen! Skal vi tage din spand og skovl med?', ['Ja, vi skal i Spielplatz!', 'Ja, legepladsen. Fertig.'], 'Giv barnet det danske ord i en naturlig sætning: legepladsen.', 'Das dänische Wort beiläufig anbieten.'],
+      ['Ja! Spand og skovl!', 'Hvor er du dygtig – spand og skovl! Så finder vi dem efter morgenmaden.', ['Endlich Dänisch!', 'Det hedder « spanden og skovlen ».'], 'Ros det danske uden at gøre et stort nummer ud af det.', 'Dänische Antwort freundlich bestätigen.']
+    ], 'Ella spiser sine cornflakes og nynner « spand og skovl, spand og skovl ».'),
+    D('dm1d02', 'B1', '🛁', 'Badetid', 'Det er aften, og din søn på fire skal i bad. Brug hverdagssproget aktivt.', false, [
+      ['Jeg gider ikke i bad!', 'Det forstår jeg godt. Men du har sand i håret fra legepladsen. Skal vi have skum i vandet?', ['Du skal bare i bad, punktum!', 'Det forstår jeg godt. Men du har sand i din hår.'], 'Anerkend følelsen, giv en grund, og tilbyd et valg. « håret » (bestemt form).', 'Gefühl anerkennen, Grund nennen, Wahl anbieten.'],
+      ['Ja! Og ænderne!', 'Selvfølgelig skal ænderne med. Hvor mange ænder har du?', ['Selvfølgelig skal anderne med.', 'Okay, Enten auch.'], 'en and → ænder (uregelmæssigt flertal).', 'en and → ænder (unregelmässig).'],
+      ['Tre. En gul, en rød og … en lille.', 'En gul, en rød og en lille. Skal vi vaske tæerne først eller ørerne?', ['En gul, en rødt og en lille.', 'Super. Wasch dich.'], 'en and → en rød and (ingen -t ved en-ord).', 'Utrum: kein -t am Adjektiv.'],
+      ['Tæerne! Det kilder!', 'Kilder det? Så vasker jeg lige meget forsigtigt. Kilde, kilde!', ['Kilder det? Så vasker jeg forsigtig.', 'Halt still!'], 'Adverbium: forsigtigt (med -t).', 'Adverb mit -t: forsigtigt.'],
+      ['Mere skum!', 'Nu er der skum nok. Lad os skylle håret, og så kommer du op i det bløde håndklæde.', ['Nu der er skum nok.', 'Nein, genug!'], 'Ordstilling: Nu ER der (verbet på plads 2).', 'V2: «Nu er der».']
+    ], 'Pakket ind i håndklædet siger din søn: « Det var et godt bad. »'),
+    D('dm1d03', 'B1', '🐄', 'På bondegården', 'I besøger en bondegård i ferien. Din datter på fem stiller mange spørgsmål.', false, [
+      ['Hvad hedder den der?', 'Det er en ko. Den giver os mælk. Hvad siger koen?', ['Det er en kuh.', 'Det er et ko.'], 'en ko (fælleskøn), flertal: køer.', 'en ko, Plural køer.'],
+      ['Muuuh! Og den lille?', 'Den lille er en kalv. Den er kun to uger gammel.', ['Den lille er en kalf.', 'Den lille er kalven gammel to uger.'], 'en kalv – en ung ko.', 'en kalv = Kalb.'],
+      ['Må jeg klappe den?', 'Vi spørger lige landmanden først. Man skal altid spørge, før man rører ved dyrene.', ['Ja, klap bare alle dyr.', 'Vi spørger landmanden først. Man altid skal spørge.'], 'Adverbiet « altid » efter verbet i hovedsætning: Man skal altid …', '«altid» nach dem finiten Verb.'],
+      ['Hvorfor er grisene så beskidte?', 'Grise ruller sig i mudder, når det er varmt. Mudderet køler dem og beskytter mod solen.', ['Grisene er beskidt, fordi de er beskidt.', 'Weil sie Schweine sind.'], 'Forklar enkelt og konkret – det giver ordforråd.', 'Einfach und konkret erklären.'],
+      ['Ligesom solcreme?', 'Præcis ligesom solcreme! Du er godt nok klog.', ['Præcis som solcreme! Du er godt nok kloge.', 'Nein, nicht wie Sonnencreme.'], '« klog » efter « du er » (ental).', 'Prädikativ Singular: klog.']
+    ], 'På vej hjem tæller I alle de dyr, I har set – på dansk.'),
+    D('dm1d04', 'B1', '📞', 'Mormor ringer', 'Din mor ringer fra Danmark og spørger til barnebarnet.', true, [
+      ['Hej skat! Hvordan har I det?', 'Hej mor! Vi har det godt. Noah er lige kommet hjem fra børnehaven.', ['Hej mor! Vi har det god.', 'Hej mor! Vi er det godt.'], 'Have det godt (adverbium med -t).', '«have det godt».'],
+      ['Taler han stadig dansk med dig?', 'Ja, han forstår alt, men han svarer tit på tysk.', ['Ja, han forstår alt, men han tit svarer på tysk.', 'Nein, nicht mehr.'], '« tit » efter verbet i hovedsætning: han svarer tit.', 'Adverb nach dem Verb.'],
+      ['Åh. Er det ikke lidt ærgerligt?', 'Det er helt normalt. Det vigtigste er, at han hører meget dansk – også fra dig.', ['Det er helt normal.', 'Ja, det er katastrofalt.'], '« Det er normalt » – intetkøn efter « det ».', '«det» + Adjektiv mit -t.'],
+      ['Hvad kan jeg gøre?', 'Du kunne læse en historie for ham, når vi ringer på søndag. Det elsker han.', ['Du kunne læser en historie.', 'Nichts.'], 'Efter « kunne »: infinitiv (læse).', 'Nach Modalverb: Infinitiv.'],
+      ['Det gør jeg gerne! Hvilken bog?', 'Noget med dyr. Han er helt vild med pindsvin i øjeblikket.', ['Noget med dyr. Han er vild med pindsvinene i øjeblikket.', 'Egal.'], '« være vild med » = begeistert sein von.', '«vild med» = verrückt nach.']
+    ], 'Mormor finder straks en bog om et pindsvin frem.'),
+    D('dm1d05', 'B2', '🧸', 'Samtale med pædagogen', 'I vuggestuen spørger pædagogen (hun taler dansk, fordi hun selv er dansk) om jeres sprogstrategi.', false, [
+      ['Vi har lagt mærke til, at Ella blander sprogene. Er det noget, I tænker over?', 'Ja, det har vi også bemærket. Vi har læst, at sprogblanding er helt normalt hos tosprogede børn.', ['Ja, det har vi også bemærket. Vi læst, at det er normalt.', 'Nej, det er os ligegyldigt.'], 'Førnutid: har læst.', 'Perfekt: har læst.'],
+      ['Hvad gør I derhjemme?', 'Jeg taler kun dansk med hende, og min mand taler schweizertysk. Vi prøver at være konsekvente.', ['Jeg taler kun dansk med hende, og min mand taler schweizertysk. Vi prøver at være konsekvent.', 'Vi taler, hvad vi har lyst til.'], 'Prædikativ i flertal: vi er konsekvente.', 'Prädikativ Plural: -e.'],
+      ['Det lyder fornuftigt. Har I nogen bekymringer?', 'Lidt. Hun siger færre ord på dansk end på tysk. Burde vi være bekymrede?', ['Lidt. Hun siger mindre ord på dansk.', 'Nein.'], 'Tællelige ord: færre ord (ikke « mindre »).', 'Zählbar: færre.'],
+      ['Ikke nødvendigvis. Man skal se på hendes samlede ordforråd.', 'Det giver god mening. Kan I fortælle os, hvis I oplever noget, der bekymrer jer?', ['Det giver god mening. Kan I fortælle os, hvis I oplever noget, som bekymrer os?', 'Okay, tschüss.'], 'Bed om et samarbejde – høfligt.', 'Um Zusammenarbeit bitten.'],
+      ['Selvfølgelig. Vi synes, det er dejligt, at hun får dansk med hjemmefra.', 'Tak, det er rart at høre. Det betyder meget for os.', ['Tak, det er rar at høre.', 'Ja ja.'], '« Det er rart » (intetkøn).', '«rart» mit -t.']
+    ], 'Pædagogen foreslår, at I tager en dansk billedbog med i vuggestuen.'),
+    D('dm1d06', 'B2', '🐶', 'Hos dyrlægen (telefon)', 'Jeres hund halter. Du ringer til dyrlægen.', true, [
+      ['Dyreklinikken, det er Mette.', 'Goddag, jeg ringer, fordi vores hund er begyndt at halte på det ene forben.', ['Goddag, jeg ringer, fordi vores hund er begyndt halte.', 'Hallo, hund kaputt.'], '« begynde at » + infinitiv.', '«begynde at» + Infinitiv.'],
+      ['Hvor længe har det stået på?', 'Siden i går eftermiddags. Han løb i skoven og pev pludselig.', ['Siden i går eftermiddag. Han løb i skoven og pivede pludselig.', 'Lange.'], 'pibe → pev (stærkt verbum).', 'pibe → pev.'],
+      ['Kan han støtte på benet?', 'Lidt, men han vil helst ikke. Han slikker også meget på poten.', ['Lidt, men han vil ikke helst.', 'Ja, perfekt.'], '« helst » efter « vil »: han vil helst ikke.', 'Stellung von «helst».'],
+      ['Det lyder som noget, vi bør se på. Kan I komme i dag kl. 15?', 'Ja, det kan vi godt. Skal vi tage noget med?', ['Ja, det vi kan godt.', 'Nein, keine Zeit.'], 'Ordstilling: det kan vi godt.', 'V2-Stellung.'],
+      ['Tag gerne hans vaccinationspas med.', 'Det skal jeg nok huske. Tusind tak for hjælpen.', ['Det skal jeg huske nok.', 'Selv tak.'], '« skal nok » = verspricht etwas.', '«skal nok» = werde ich bestimmt.']
+    ], 'Om eftermiddagen finder dyrlægen en lille torn i poten.'),
+    D('dm1d07', 'B2', '🗣️', '« Hvorfor skal jeg tale dansk? »', 'Din søn på syv vil ikke længere tale dansk. Han er frustreret.', false, [
+      ['Ingen i min klasse taler dansk. Det er pinligt!', 'Jeg kan godt forstå, at det føles sådan. Det er ikke rart at føle sig anderledes.', ['Det er ikke pinligt, stop med det.', 'Okay, dann reden wir Deutsch.'], 'Anerkend følelsen først.', 'Zuerst das Gefühl anerkennen.'],
+      ['Hvorfor skal jeg overhovedet kunne dansk?', 'Fordi det er en del af dig. Og så kan du tale med mormor og dine kusiner i Danmark.', ['Fordi jeg siger det!', 'Fordi det er en del af dig. Og så du kan tale med mormor.'], 'Giv konkrete, personlige grunde. Ordstilling: så kan du …', 'Persönliche Gründe nennen.'],
+      ['Men jeg taler jo tysk med dig nogle gange.', 'Det er rigtigt. Hvad nu, hvis vi aftaler, at dansk er vores hemmelige sprog derhjemme?', ['Det er rigtig. Hvad nu, hvis vi aftaler…', 'Das darfst du nicht.'], '« Det er rigtigt » (adjektiv med -t efter « det »).', '«det» + Adjektiv mit -t.'],
+      ['Et hemmeligt sprog? Som spioner?', 'Præcis som spioner. Ingen i din klasse kan forstå, hvad vi siger.', ['Præcis som spioner. Ingen i din klasse kan forstår.', 'Nein, keine Spione.'], 'Efter « kan »: infinitiv (forstå).', 'Infinitiv nach «kan».'],
+      ['Okay … men kun derhjemme.', 'Det er en aftale. Og hvis du har lyst, kan du lære din bedste ven et par danske ord.', ['Det er en aftale. Og hvis du har lyst, du kan lære…', 'Super, endlich.'], 'Bisætning først → verbet straks efter: … kan du lære.', 'Nach Nebensatz: Verb direkt.']
+    ], 'Om aftenen spørger din søn: « Hvordan siger man "Geheimagent" på dansk? »'),
+    D('dm1d08', 'B2', '📚', 'På biblioteket i København', 'I er på ferie i Danmark og vil låne bøger med hjem.', false, [
+      ['Hej, kan jeg hjælpe jer?', 'Ja tak. Vi bor i Schweiz og leder efter danske billedbøger til en fireårig.', ['Ja tak. Vi bor i Schweiz og leder danske billedbøger.', 'Wir suchen Bücher.'], '« lede efter » = suchen.', '«lede efter».'],
+      ['Hvad er hun interesseret i?', 'Dyr – og især alt med heste. Gerne bøger med lidt tekst og mange billeder.', ['Dyr – og specielt alle med heste.', 'Egal.'], '« alt med heste » (alt = alles).', '«alt med» = alles mit.'],
+      ['Kan I låne bøger her, selvom I ikke bor i Danmark?', 'Det ved jeg ikke. Er det muligt at få et lånerkort, når man bor i udlandet?', ['Det ved jeg ikke. Er det mulig at få et lånerkort?', 'Nein.'], '« Er det muligt » (intetkøn).', '«muligt» mit -t.'],
+      ['Det afhænger af reglerne i den enkelte kommune. Men I kan i hvert fald læse her.', 'Godt at vide. Kan man også købe brugte bøger et sted?', ['Godt at vide. Kan man også købe brugte bøgerne et sted?', 'Schade.'], 'Ubestemt flertal: brugte bøger.', 'Unbestimmter Plural.'],
+      ['Vi har et bogsalg ved udgangen – fem kroner pr. bog.', 'Fantastisk! Så tager vi nok en hel pose med hjem.', ['Fantastisk! Så vi tager nok en hel pose.', 'Teuer.'], 'Ordstilling: Så tager vi …', 'V2 nach «så».']
+    ], 'I går derfra med femten bøger – og en meget glad datter.'),
+    D('dm1d09', 'C1', '☕', 'Uenighed om sprogstrategien', 'Din partner (dansk er ikke hans modersmål) tvivler på, om det giver mening at holde fast i dansk.', false, [
+      ['Jeg er bange for, at Ella ikke lærer ordentligt tysk, hvis du kun taler dansk med hende.', 'Jeg forstår din bekymring, men forskningen viser faktisk, at et stærkt modersmål understøtter det andet sprog.', ['Du har ingen anelse om det.', 'Jeg forstår din bekymring, men forskningen viser faktisk, at et stærk modersmål understøtter…'], 'Saglig og empatisk. « et stærkt modersmål » (et-ord).', 'Sachlich und empathisch; Neutrum: stærkt.'],
+      ['Men hun hører jo næsten kun tysk udenfor. Er det ikke spild af tid?', 'Netop derfor er det så vigtigt, at hun får dansk derhjemme. Ellers forsvinder det.', ['Netop derfor det er så vigtigt…', 'Ja, du hast recht.'], 'Ordstilling: Netop derfor ER det …', 'V2 nach Adverbial.'],
+      ['Jeg føler mig bare lidt udenfor, når I taler sammen.', 'Det havde jeg ikke tænkt på. Skal vi finde på noget, så du også er med – fx et par danske sange, vi synger sammen?', ['Det havde jeg ikke tænkt over. Det er dit problem.', 'Det havde jeg ikke tænkt på. Skal vi finde noget på…'], 'Tag hans følelse alvorligt, og foreslå en løsning. « finde på » = sich ausdenken.', 'Gefühl ernst nehmen, Lösung vorschlagen.'],
+      ['Det kunne være hyggeligt. Måske kunne jeg lære lidt mere dansk.', 'Det ville betyde meget for mig. Og Ella ville elske at være din lærer.', ['Det ville betyder meget for mig.', 'Endlich.'], '« ville » + infinitiv: ville betyde.', '«ville» + Infinitiv.'],
+      ['Så lad os prøve det i et halvt år og så evaluere.', 'Det er en god idé. Lad os tage det op igen til sommer.', ['Det er en god idé. Lad os tage det igen op til sommer.', 'Nein.'], '« tage noget op igen » = wieder aufgreifen.', '«tage op igen».']
+    ], 'I aftaler, at fredag aften bliver « dansk aften » for hele familien.'),
+    D('dm1d10', 'C1', '🎙️', 'Interview til en podcast om tosprogethed', 'En dansk podcast om familier i udlandet interviewer dig.', false, [
+      ['Hvorfor var det vigtigt for dig at give dansk videre?', 'For mig handler det om identitet. Jeg ønskede, at mine børn skulle kunne mærke, hvor de også kommer fra.', ['For mig det handler om identitet.', 'Weil Dänisch schön ist.'], 'Ordstilling: For mig handler det …', 'V2 nach Adverbial.'],
+      ['Hvad har været den største udfordring?', 'Uden tvivl at holde motivationen oppe i perioder, hvor børnene helst ville tale tysk.', ['Uden tvivl at holde motivationen op.', 'Alles.'], '« holde oppe » (adverbium for sted/tilstand).', '«holde oppe» = aufrechterhalten.'],
+      ['Har du nogensinde overvejet at give op?', 'Ja, især da min søn var syv. Men i stedet for at stille krav begyndte vi at gøre dansk til noget sjovt.', ['Ja, især når min søn var syv.', 'Nie.'], 'Én gang i fortiden: « da » (ikke « når »).', 'Einmalig in der Vergangenheit: «da».'],
+      ['Hvilket råd vil du give til andre forældre?', 'At være tålmodige og ikke gøre sproget til en kamp. Kvantitet er vigtigt, men glæde er endnu vigtigere.', ['At være tålmodig og ikke gøre sproget til en kamp.', 'Gebt auf.'], 'Generelt til flere forældre: tålmodige (flertal).', 'Plural: tålmodige.'],
+      ['Til sidst: Hvad betyder dansk for dine børn i dag?', 'Det er blevet deres eget. De bruger det på deres egen måde – og det er netop pointen.', ['Det er blevet deres eget. De bruger det på sin egen måde.', 'Nicht viel.'], '« deres egen måde » – ikke « sin » ved flertal.', 'Plural: «deres» (nicht «sin»).']
+    ], 'Værten takker og siger, at mange lyttere vil kunne genkende sig selv.')
+  ]);
+})();

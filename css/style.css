@@ -226,3 +226,4 @@ button.pill{cursor:pointer;color:var(--ink)}
 #brandName{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}.brand{min-width:0}
 .pill{white-space:nowrap}
 @media (max-width:440px){.topbar .pill{padding:3px 7px;font-size:.82rem}.brand{font-size:.95rem;gap:6px}.topbar .logo{width:24px;height:24px;font-size:.85rem}}
+.card.hl{box-shadow:0 0 0 3px var(--accent);transition:box-shadow .3s}
